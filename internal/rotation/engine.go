@@ -21,8 +21,7 @@ type LinodeClient interface {
 
 // VaultClient defines the interface for Vault operations
 type VaultClient interface {
-	WriteToken(ctx context.Context, path, token string) error
-	ReadToken(ctx context.Context, path string) (string, error)
+	WriteToken(ctx context.Context, path, key, token string) error
 	WriteTokenState(ctx context.Context, path string, state *models.TokenState) error
 	ReadTokenState(ctx context.Context, path string) (*models.TokenState, error)
 }
@@ -32,6 +31,18 @@ type Engine struct {
 	linodeClient LinodeClient
 	vaultClient  VaultClient
 	dryRun       bool
+}
+
+// statePath returns the Vault path used for token state tracking (custom_metadata).
+// When a non-default storage key is used, the key is appended to the path to
+// avoid metadata collisions between tokens that share a Vault path but use
+// different keys (e.g., account.token using account.label as key vs a regular
+// token using the default "token" key on the same path).
+func statePath(storage config.StorageConfig) string {
+	if storage.Key == "" || storage.Key == "token" {
+		return storage.Path
+	}
+	return storage.Path + "/" + storage.Key
 }
 
 // NewEngine creates a new rotation engine
@@ -146,7 +157,7 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 	}
 
 	// Read existing state (if any)
-	storagePath := tokenConfig.Storage[0].Path
+	storagePath := statePath(tokenConfig.Storage[0])
 	existingState, err := e.vaultClient.ReadTokenState(ctx, storagePath)
 	if err != nil {
 		span.RecordError(err)
@@ -234,7 +245,7 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 	}
 
 	// Read existing state
-	storagePath := tokenConfig.Storage[0].Path
+	storagePath := statePath(tokenConfig.Storage[0])
 	existingState, err := e.vaultClient.ReadTokenState(ctx, storagePath)
 	if err != nil {
 		span.RecordError(err)
@@ -301,8 +312,9 @@ func (e *Engine) storeTokenInBackends(ctx context.Context, storageConfigs []conf
 	logger := observability.GetLogger()
 
 	for _, storage := range storageConfigs {
-		if storage.Type == "vault" {
-			if err := e.vaultClient.WriteToken(ctx, storage.Path, token); err != nil {
+		switch storage.Type {
+		case "vault":
+			if err := e.vaultClient.WriteToken(ctx, storage.Path, storage.Key, token); err != nil {
 				return err
 			}
 			attrs := append([]any{
@@ -310,6 +322,8 @@ func (e *Engine) storeTokenInBackends(ctx context.Context, storageConfigs []conf
 				slog.String("vault_path", storage.Path),
 			}, observability.TraceAttrs(ctx)...)
 			logger.InfoContext(ctx, "Stored token in Vault", attrs...)
+		default:
+			return fmt.Errorf("unsupported storage type: %s", storage.Type)
 		}
 	}
 	return nil

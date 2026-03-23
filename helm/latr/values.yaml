@@ -78,6 +78,46 @@ podDisruptionBudget:
 
 # latr application configuration
 config:
+  # Configuration for a single-account deployment via this Helm chart.
+  # For multi-account setups, use Kustomize overlays with separate config files.
+
+  # Account configuration (required for this chart)
+  account:
+    # Label for this account (required). Also used as the Vault key when
+    # using storage-based token source.
+    label: ""
+    # Team that owns this account
+    team: ""
+    # Vault AppRole credentials for this account
+    vault:
+      roleId: ""
+      secretId: ""
+      # Optional overrides for global vault.address and vault.mountPath:
+      # address: ""
+      # mountPath: ""
+    # Linode API URL (optional, defaults to https://api.linode.com)
+    apiUrl: ""
+    # Account token configuration (optional) — passed directly via toYaml,
+    # so field names must use snake_case to match the Go YAML tags.
+    # If storage is set, the Linode API token is read from storage at startup
+    # (key derived from account.label). Falls back to LINODE_TOKEN env var.
+    # If label/validity/scopes are also set, latr manages (rotates) this token.
+    token: {}
+    # Example — read from vault, no rotation:
+    #   token:
+    #     storage:
+    #       - type: vault
+    #         path: "linode/accounts"
+    # Example — read from vault + managed rotation:
+    #   token:
+    #     storage:
+    #       - type: vault
+    #         path: "linode/accounts"
+    #     label: "latr-main"
+    #     validity: "180d"
+    #     scopes: "*"
+    #     rotation_threshold: 10
+
   # Daemon settings
   daemon:
     # Mode: "daemon" for continuous operation or "one-shot" for single execution
@@ -91,19 +131,13 @@ config:
   rotation:
     # Rotate when this percentage of validity remains (e.g., 10 = rotate at 10% remaining)
     thresholdPercent: 10
-    # Whether to prune (delete) expired tokens from Linode
-    pruneExpired: false
 
-  # Vault configuration
+  # Global Vault configuration (defaults — can be overridden per-account via account.vault)
   vault:
     # Vault server address (e.g., "https://vault.example.com:8200")
     address: ""
     # Vault mount path for KV v2 secrets engine
     mountPath: "secret"
-    # AppRole authentication credentials
-    # These reference Kubernetes secrets by default
-    roleId: ""
-    secretId: ""
 
   # Observability settings
   observability:
@@ -112,18 +146,20 @@ config:
     # Log level: debug, info, warn, error
     logLevel: "info"
 
-  # Token definitions
-  # At least one token must be defined
+  # Token definitions — passed directly to the latr config file via toYaml,
+  # so field names must use snake_case to match the Go YAML tags.
+  # At least one token must be defined.
   tokens: []
   # Example token configuration:
   # - label: my-api-token
   #   team: platform-team
   #   validity: 90d
   #   scopes: "*"
-  #   rotationThreshold: 10
+  #   rotation_threshold: 10
   #   storage:
   #     - type: vault
-  #       path: secret/data/linode/tokens/my-api-token
+  #       path: linode/tokens/my-api-token
+  #       key: ""  # Optional: key name within the Vault secret (default: "token")
 
 # Secrets configuration
 # These values should be provided via a separate values file or via --set flags

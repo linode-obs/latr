@@ -39,14 +39,9 @@ type MockVaultClient struct {
 	mock.Mock
 }
 
-func (m *MockVaultClient) WriteToken(ctx context.Context, path, token string) error {
-	args := m.Called(ctx, path, token)
+func (m *MockVaultClient) WriteToken(ctx context.Context, path, key, token string) error {
+	args := m.Called(ctx, path, key, token)
 	return args.Error(0)
-}
-
-func (m *MockVaultClient) ReadToken(ctx context.Context, path string) (string, error) {
-	args := m.Called(ctx, path)
-	return args.String(0), args.Error(1)
 }
 
 func (m *MockVaultClient) WriteTokenState(ctx context.Context, path string, state *models.TokenState) error {
@@ -72,7 +67,7 @@ func TestEngine_ProcessToken_NewToken(t *testing.T) {
 		Validity: "90d",
 		Scopes:   "*",
 		Storage: []config.StorageConfig{
-			{Type: "vault", Path: "secret/data/test/new-token"},
+			{Type: "vault", Path: "test/new-token"},
 		},
 	}
 
@@ -92,9 +87,9 @@ func TestEngine_ProcessToken_NewToken(t *testing.T) {
 	mockLinode.On("CreateToken", mock.Anything, "new-token", "*", mock.Anything).Return(createdToken, nil)
 
 	// Vault operations
-	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/new-token").Return(nil, nil)
-	mockVault.On("WriteToken", mock.Anything, "secret/data/test/new-token", "new-secret-token").Return(nil)
-	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/new-token", mock.Anything).Return(nil)
+	mockVault.On("ReadTokenState", mock.Anything, "test/new-token").Return(nil, nil)
+	mockVault.On("WriteToken", mock.Anything, "test/new-token", "", "new-secret-token").Return(nil)
+	mockVault.On("WriteTokenState", mock.Anything, "test/new-token", mock.Anything).Return(nil)
 
 	engine := &Engine{
 		linodeClient: mockLinode,
@@ -120,7 +115,7 @@ func TestEngine_ProcessToken_ExistingToken_NoRotationNeeded(t *testing.T) {
 		Validity: "90d",
 		Scopes:   "*",
 		Storage: []config.StorageConfig{
-			{Type: "vault", Path: "secret/data/test/existing-token"},
+			{Type: "vault", Path: "test/existing-token"},
 		},
 	}
 
@@ -161,7 +156,7 @@ func TestEngine_ProcessToken_ExistingToken_NeedsRotation(t *testing.T) {
 		Validity: "90d",
 		Scopes:   "*",
 		Storage: []config.StorageConfig{
-			{Type: "vault", Path: "secret/data/test/existing-token"},
+			{Type: "vault", Path: "test/existing-token"},
 		},
 	}
 
@@ -195,9 +190,9 @@ func TestEngine_ProcessToken_ExistingToken_NeedsRotation(t *testing.T) {
 	mockLinode.On("FindTokenByLabel", mock.Anything, "existing-token").Return(existingToken, nil)
 	mockLinode.On("CreateToken", mock.Anything, "existing-token", "*", mock.Anything).Return(newToken, nil)
 
-	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/existing-token").Return(existingState, nil)
-	mockVault.On("WriteToken", mock.Anything, "secret/data/test/existing-token", "new-rotated-token").Return(nil)
-	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/existing-token", mock.MatchedBy(func(state *models.TokenState) bool {
+	mockVault.On("ReadTokenState", mock.Anything, "test/existing-token").Return(existingState, nil)
+	mockVault.On("WriteToken", mock.Anything, "test/existing-token", "", "new-rotated-token").Return(nil)
+	mockVault.On("WriteTokenState", mock.Anything, "test/existing-token", mock.MatchedBy(func(state *models.TokenState) bool {
 		return state.CurrentLinodeID == 456 &&
 			state.PreviousLinodeID == 123 &&
 			state.RotationCount == 1
@@ -227,7 +222,7 @@ func TestEngine_ProcessToken_DryRunMode(t *testing.T) {
 		Validity: "90d",
 		Scopes:   "*",
 		Storage: []config.StorageConfig{
-			{Type: "vault", Path: "secret/data/test/dry-run-token"},
+			{Type: "vault", Path: "test/dry-run-token"},
 		},
 	}
 
@@ -260,7 +255,7 @@ func TestEngine_ProcessToken_LinodeCreateFails(t *testing.T) {
 		Validity: "90d",
 		Scopes:   "*",
 		Storage: []config.StorageConfig{
-			{Type: "vault", Path: "secret/data/test/new-token"},
+			{Type: "vault", Path: "test/new-token"},
 		},
 	}
 
@@ -268,7 +263,7 @@ func TestEngine_ProcessToken_LinodeCreateFails(t *testing.T) {
 	mockLinode.On("FindTokenByLabel", mock.Anything, "new-token").Return(nil, nil)
 	mockLinode.On("CreateToken", mock.Anything, "new-token", "*", mock.Anything).Return(nil, errors.New("API error"))
 
-	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/new-token").Return(nil, nil)
+	mockVault.On("ReadTokenState", mock.Anything, "test/new-token").Return(nil, nil)
 
 	engine := &Engine{
 		linodeClient: mockLinode,
@@ -296,7 +291,7 @@ func TestEngine_ProcessToken_VaultWriteFails_StateTracked(t *testing.T) {
 		Validity: "90d",
 		Scopes:   "*",
 		Storage: []config.StorageConfig{
-			{Type: "vault", Path: "secret/data/test/new-token"},
+			{Type: "vault", Path: "test/new-token"},
 		},
 	}
 
@@ -314,10 +309,10 @@ func TestEngine_ProcessToken_VaultWriteFails_StateTracked(t *testing.T) {
 	mockLinode.On("FindTokenByLabel", mock.Anything, "new-token").Return(nil, nil)
 	mockLinode.On("CreateToken", mock.Anything, "new-token", "*", mock.Anything).Return(createdToken, nil)
 
-	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/new-token").Return(nil, nil)
-	mockVault.On("WriteToken", mock.Anything, "secret/data/test/new-token", "new-secret-token").Return(errors.New("vault error"))
+	mockVault.On("ReadTokenState", mock.Anything, "test/new-token").Return(nil, nil)
+	mockVault.On("WriteToken", mock.Anything, "test/new-token", "", "new-secret-token").Return(errors.New("vault error"))
 	// State should still be written to track that we need to retry Vault write
-	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/new-token", mock.Anything).Return(nil)
+	mockVault.On("WriteTokenState", mock.Anything, "test/new-token", mock.Anything).Return(nil)
 
 	engine := &Engine{
 		linodeClient: mockLinode,

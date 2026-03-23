@@ -7,10 +7,13 @@ A Go application for automatically managing and rotating Linode API tokens with 
 - **Automatic Token Rotation**: Automatically rotates tokens based on configurable thresholds (default: 10% validity remaining)
 - **Secure Storage**: Stores rotated tokens in HashiCorp Vault (KV v2)
 - **State Tracking**: Tracks token rotation history and state via Vault metadata
-- **Graceful Token Management**: Keeps old tokens until expiration (configurable pruning)
+- **Graceful Token Management**: Keeps old tokens until the Linode API auto-expires them
+- **Multi-Account Support**: Manage tokens across multiple Linode accounts with separate API credentials
+- **Account Token Management**: Optionally rotate the account's own API token
 - **Multiple Tokens**: Manage multiple API tokens with different configurations
 - **Team Metadata**: Associate tokens with owning teams for organization
-- **Flexible Configuration**: Single YAML file or glob pattern support
+- **Flexible Configuration**: Single YAML file or glob pattern for multi-account setups
+- **Custom API Endpoints**: Override the Linode API URL per account (e.g., for staging)
 - **Daemon or One-Shot**: Run as a long-running daemon or one-time execution
 - **Dry-Run Mode**: Test configuration without making changes
 - **OpenTelemetry Support**: Observability via traces, metrics, and logs
@@ -110,22 +113,44 @@ go install ./cmd/latr
 
 ## Configuration
 
-### Environment Variables
+latr supports single-file and multi-file configurations. In multi-file mode,
+a global config (`global: true`) provides defaults that account configs inherit
+and can override. Environment variables are expanded using `${VAR_NAME}` syntax.
 
-- `LINODE_TOKEN`: Your Linode API token (required)
+- `LINODE_TOKEN`: Your Linode API token (optional if in config)
 - `VAULT_ROLE_ID`: Vault AppRole role ID (optional if in config)
 - `VAULT_SECRET_ID`: Vault AppRole secret ID (optional if in config)
 
-### Configuration File
+### Credential Resolution
 
-Create a YAML configuration file (see `examples/config.yaml`):
+Credentials can be set at multiple levels. For each credential, latr checks
+in order: account config → global config → environment variable.
+
+| Credential | Account config | Global config | Env var |
+|---|---|---|---|
+| Linode API token | `account.token.storage` | — | `LINODE_TOKEN` |
+| Linode API URL | `account.api_url` | — | `LINODE_API_URL` |
+| Vault role ID | `account.vault.role_id` | `vault.role_id` | `VAULT_ROLE_ID` |
+| Vault secret ID | `account.vault.secret_id` | `vault.secret_id` | `VAULT_SECRET_ID` |
+
+If no source provides a required value (Linode token, Vault role/secret ID),
+latr exits with an error identifying which credential is missing and for
+which account. The Linode API URL defaults to `https://api.linode.com` if
+not set anywhere.
+
+### Single-File Configuration
+
+For simple setups with one Linode account, everything goes in a single file:
 
 ```yaml
-# Global daemon settings
-daemon:
-  mode: "daemon" # "daemon" or "one-shot"
-  check_interval: "30m" # How often to check tokens (daemon mode only)
-  dry_run: false # If true, no actual changes are made
+# Linode Account config (self)
+account:
+  label: "lcid-1234"
+  team: "platform-team"
+  token:
+    storage:
+      - type: "vault"
+        path: "linode/accounts"
 
 # Rotation behavior
 rotation:
@@ -151,7 +176,8 @@ tokens:
     scopes: "*" # "*" for all scopes, or comma-separated list
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/my-api-token"
+        path: "linode/tokens/my-api-token"
+        # key: "token"  # Optional: key name within the Vault secret (default: "token")
 
   - label: "backup-token"
     team: "sre-team"
@@ -160,8 +186,76 @@ tokens:
     rotation_threshold: 15 # Override global threshold for this token
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/backup"
+        path: "linode/tokens/backup"
 ```
+
+Storage entries support an optional `key` field that specifies the key name
+within the Vault KV v2 secret. It defaults to `"token"` if not set. The
+`account.token` storage uses `account.label` as the key automatically, which
+allows multiple accounts to share a single Vault path with separate keys.
+When a non-default key is used, token state metadata is tracked at a derived
+path to avoid collisions.
+
+### Multi-File Configuration
+
+For multiple accounts, use a global config for shared defaults and separate
+files per account. The global config is identified by `global: true` — file
+order doesn't matter. Only one global config is allowed.
+
+**Global config** (`global: true`) — shared defaults. Can optionally include
+`account` and `tokens` if it also serves as an account config (useful for
+single-file setups that need `global: true`):
+
+```yaml
+global: true
+
+daemon:
+  mode: "daemon"
+  check_interval: "30m"
+
+rotation:
+  threshold_percent: 10
+
+vault:
+  address: "https://vault.example.com"
+  role_id: "${VAULT_ROLE_ID}"
+  secret_id: "${VAULT_SECRET_ID}"
+  mount_path: "secret"
+
+observability:
+  log_level: "info"
+  otel_endpoint: "localhost:4317"
+```
+
+**Account configs** — inherit global defaults, override what's needed:
+
+```yaml
+account:
+  label: "lcid-1234"
+  team: "platform-team"
+  vault:
+    role_id: "account-specific-role-id"   # Overrides global vault.role_id
+    secret_id: "account-specific-secret"  # Overrides global vault.secret_id
+  token:
+    storage:
+      - type: "vault"
+        path: "linode/accounts"
+
+tokens:
+  - label: "my-api-token"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "linode/tokens/my-api-token"
+```
+
+Account configs can also override `rotation` and `vault` settings from the
+global config. Any field not specified is inherited from the global
+defaults. Observability and daemon settings (`observability`, `mode`,
+`check_interval`, `dry_run`) are global-only — any per-account values for
+these fields are currently ignored and have no effect (a warning is logged
+if they differ from the global values).
 
 ## Usage
 
@@ -199,13 +293,88 @@ daemon:
   dry_run: true
 ```
 
-### Multiple Configuration Files
+### Multiple Accounts
 
-Use a glob pattern to load multiple config files:
+Use a glob pattern to load a global config and per-account configs:
 
 ```bash
 ./latr -config "configs/*.yaml"
 ```
+
+```
+configs/
+├── globals.yaml       # global: true — shared defaults
+├── production.yaml    # account + tokens (inherits globals)
+└── staging.yaml       # account + tokens (inherits globals, overrides as needed)
+```
+
+**configs/globals.yaml:**
+
+```yaml
+global: true
+
+daemon:
+  mode: "daemon"
+  check_interval: "30m"
+
+vault:
+  address: "https://vault.example.com"
+  role_id: "${VAULT_ROLE_ID}"
+  secret_id: "${VAULT_SECRET_ID}"
+```
+
+**configs/production.yaml:**
+
+```yaml
+account:
+  label: "lcid-1234"
+  team: "platform-team"
+  vault:
+    role_id: "prod-role-id"     # Override global credentials
+    secret_id: "prod-secret-id"
+  token:
+    storage:
+      - type: "vault"
+        path: "linode/accounts"
+
+tokens:
+  - label: "linode-api"
+    validity: "180d"
+    scopes: "linodes:read_write"
+    storage:
+      - type: "vault"
+        path: "prod/linode-api"
+```
+
+**configs/staging.yaml:**
+
+```yaml
+account:
+  label: "lcid-5678"
+  team: "platform-team"
+  api_url: "https://api.staging.example.com"
+  token:
+    storage:
+      - type: "vault"
+        path: "linode/accounts"
+
+# No account.vault — inherits global vault credentials
+
+rotation:
+  threshold_percent: 20  # Override: rotate earlier in staging
+
+tokens:
+  - label: "staging-api"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "staging/api"
+```
+
+All tokens in a configuration file use that file's account credentials. Tokens
+from `production.yaml` are rotated using the production account's API token;
+tokens from `staging.yaml` use the staging account's token.
 
 ### Version Information
 
@@ -226,10 +395,19 @@ Use a glob pattern to load multiple config files:
    - Previous token ID and expiry
    - Rotation count and timestamp
 
+### Account Token Management
+
+The `account.token` field optionally configures latr to rotate the account's own
+API token — the one configured in `account.token`. When rotation occurs,
+the new token is stored in Vault. The old token remains valid until Linode
+auto-expires it. The operator is responsible for restarting latr to pick up the
+new token (e.g., via ArgoCD syncing a ConfigMap update).
+
 ### Important Behaviors
 
 - **Automatic cleanup**: Expired tokens are automatically pruned by the Linode API - no manual cleanup needed
 - **Only manages configured tokens**: Only rotates tokens specified in the configuration
+- **Account isolation**: Each config file's tokens are managed using that file's account credentials
 - **Vault retry on failure**: If Linode succeeds but Vault fails, state is tracked for retry on next run
 - **Graceful shutdown**: Handles SIGTERM/SIGINT for clean daemon shutdown
 
@@ -363,7 +541,8 @@ Structured logging with rotation events, errors, and state changes
 
 ## Security Considerations
 
-- Store `LINODE_TOKEN` securely (env var, secrets manager)
+- Use `account.token.storage` to avoid plaintext tokens in config files
+- If using plain string form, store the value securely (env var expansion, K8s secrets)
 - Use Vault AppRole with minimal required permissions
 - Enable TLS for Vault communication in production
 - Rotate Vault AppRole secret IDs regularly
@@ -372,7 +551,7 @@ Structured logging with rotation events, errors, and state changes
 ## Roadmap
 
 - [x] Add proper tracing with OTel (<https://github.com/wbh1/latr/pull/11>)
-- [ ] Use structured logging (<https://github.com/wbh1/latr/issues/16>)
+- [x] Use structured logging (<https://github.com/wbh1/latr/issues/16>)
 - [ ] Additional storage backends (<https://github.com/wbh1/latr/issues/17>)
 - [x] Prometheus metrics exporter (<https://github.com/wbh1/latr/pull/11>)
 - [x] Integration tests with Docker Compose (<https://github.com/wbh1/latr/pull/2>)

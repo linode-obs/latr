@@ -13,14 +13,14 @@ func TestNewToken(t *testing.T) {
 	expiry := now.Add(90 * 24 * time.Hour)
 
 	token := &Token{
-		ID:          123,
-		Label:       "test-token",
-		Token:       "test-secret-token",
-		CreatedAt:   now,
-		ExpiresAt:   expiry,
-		Scopes:      "*",
-		Team:        "platform-team",
-		Validity:    90 * 24 * time.Hour,
+		ID:        123,
+		Label:     "test-token",
+		Token:     "test-secret-token",
+		CreatedAt: now,
+		ExpiresAt: expiry,
+		Scopes:    "*",
+		Team:      "platform-team",
+		Validity:  90 * 24 * time.Hour,
 	}
 
 	assert.Equal(t, 123, token.ID)
@@ -32,43 +32,43 @@ func TestNewToken(t *testing.T) {
 
 func TestTokenNeedsRotation(t *testing.T) {
 	tests := []struct {
-		name              string
-		expiresAt         time.Time
-		validity          time.Duration
-		thresholdPercent  int
-		expectedNeedsRot  bool
+		name             string
+		expiresAt        time.Time
+		validity         time.Duration
+		thresholdPercent int
+		expectedNeedsRot bool
 	}{
 		{
 			name:             "needs rotation - at 10% threshold",
-			expiresAt:        time.Now().Add(9 * 24 * time.Hour),  // 9 days left
-			validity:         90 * 24 * time.Hour,                  // 90 day validity
-			thresholdPercent: 10,                                   // 10% = 9 days
+			expiresAt:        time.Now().Add(9 * 24 * time.Hour), // 9 days left
+			validity:         90 * 24 * time.Hour,                // 90 day validity
+			thresholdPercent: 10,                                 // 10% = 9 days
 			expectedNeedsRot: true,
 		},
 		{
 			name:             "needs rotation - below 10% threshold",
-			expiresAt:        time.Now().Add(5 * 24 * time.Hour),  // 5 days left
-			validity:         90 * 24 * time.Hour,                  // 90 day validity
+			expiresAt:        time.Now().Add(5 * 24 * time.Hour), // 5 days left
+			validity:         90 * 24 * time.Hour,                // 90 day validity
 			thresholdPercent: 10,
 			expectedNeedsRot: true,
 		},
 		{
 			name:             "does not need rotation - above 10% threshold",
 			expiresAt:        time.Now().Add(15 * 24 * time.Hour), // 15 days left
-			validity:         90 * 24 * time.Hour,                  // 90 day validity
+			validity:         90 * 24 * time.Hour,                 // 90 day validity
 			thresholdPercent: 10,
 			expectedNeedsRot: false,
 		},
 		{
 			name:             "needs rotation - custom 20% threshold",
 			expiresAt:        time.Now().Add(18 * 24 * time.Hour), // 18 days left
-			validity:         90 * 24 * time.Hour,                  // 90 day validity
-			thresholdPercent: 20,                                   // 20% = 18 days
+			validity:         90 * 24 * time.Hour,                 // 90 day validity
+			thresholdPercent: 20,                                  // 20% = 18 days
 			expectedNeedsRot: true,
 		},
 		{
 			name:             "already expired",
-			expiresAt:        time.Now().Add(-1 * time.Hour),      // Already expired
+			expiresAt:        time.Now().Add(-1 * time.Hour), // Already expired
 			validity:         90 * 24 * time.Hour,
 			thresholdPercent: 10,
 			expectedNeedsRot: true,
@@ -91,23 +91,23 @@ func TestTokenNeedsRotation(t *testing.T) {
 
 func TestTokenIsExpired(t *testing.T) {
 	tests := []struct {
-		name           string
-		expiresAt      time.Time
+		name            string
+		expiresAt       time.Time
 		expectedExpired bool
 	}{
 		{
-			name:           "not expired - future date",
-			expiresAt:      time.Now().Add(10 * 24 * time.Hour),
+			name:            "not expired - future date",
+			expiresAt:       time.Now().Add(10 * 24 * time.Hour),
 			expectedExpired: false,
 		},
 		{
-			name:           "expired - past date",
-			expiresAt:      time.Now().Add(-1 * time.Hour),
+			name:            "expired - past date",
+			expiresAt:       time.Now().Add(-1 * time.Hour),
 			expectedExpired: true,
 		},
 		{
-			name:           "expired - just now",
-			expiresAt:      time.Now().Add(-1 * time.Second),
+			name:            "expired - just now",
+			expiresAt:       time.Now().Add(-1 * time.Second),
 			expectedExpired: true,
 		},
 	}
@@ -140,24 +140,24 @@ func TestTokenTimeUntilExpiry(t *testing.T) {
 
 func TestTokenPercentValidityRemaining(t *testing.T) {
 	tests := []struct {
-		name              string
-		createdAt         time.Time
-		expiresAt         time.Time
-		validity          time.Duration
-		expectedPercent   float64
+		name            string
+		createdAt       time.Time
+		expiresAt       time.Time
+		validity        time.Duration
+		expectedPercent float64
 	}{
 		{
 			name:            "50% remaining",
 			createdAt:       time.Now().Add(-45 * 24 * time.Hour), // Created 45 days ago
 			expiresAt:       time.Now().Add(45 * 24 * time.Hour),  // Expires in 45 days
-			validity:        90 * 24 * time.Hour,                   // 90 day validity
+			validity:        90 * 24 * time.Hour,                  // 90 day validity
 			expectedPercent: 50.0,
 		},
 		{
 			name:            "10% remaining",
 			createdAt:       time.Now().Add(-81 * 24 * time.Hour), // Created 81 days ago
 			expiresAt:       time.Now().Add(9 * 24 * time.Hour),   // Expires in 9 days
-			validity:        90 * 24 * time.Hour,                   // 90 day validity
+			validity:        90 * 24 * time.Hour,                  // 90 day validity
 			expectedPercent: 10.0,
 		},
 		{
@@ -186,13 +186,13 @@ func TestTokenPercentValidityRemaining(t *testing.T) {
 
 func TestTokenState(t *testing.T) {
 	state := &TokenState{
-		Label:              "test-token",
-		CurrentLinodeID:    123,
-		CurrentTokenValue:  "current-secret",
-		LastRotatedAt:      time.Now().Add(-30 * 24 * time.Hour),
-		PreviousLinodeID:   100,
-		PreviousExpiresAt:  time.Now().Add(60 * 24 * time.Hour),
-		RotationCount:      5,
+		Label:             "test-token",
+		CurrentLinodeID:   123,
+		CurrentTokenValue: "current-secret",
+		LastRotatedAt:     time.Now().Add(-30 * 24 * time.Hour),
+		PreviousLinodeID:  100,
+		PreviousExpiresAt: time.Now().Add(60 * 24 * time.Hour),
+		RotationCount:     5,
 	}
 
 	assert.Equal(t, "test-token", state.Label)
@@ -207,13 +207,13 @@ func TestTokenStateAfterRotation(t *testing.T) {
 
 	// Initial state
 	state := &TokenState{
-		Label:              "test-token",
-		CurrentLinodeID:    100,
-		CurrentTokenValue:  "old-secret",
-		LastRotatedAt:      now.Add(-80 * 24 * time.Hour),
-		PreviousLinodeID:   0,
-		PreviousExpiresAt:  time.Time{},
-		RotationCount:      0,
+		Label:             "test-token",
+		CurrentLinodeID:   100,
+		CurrentTokenValue: "old-secret",
+		LastRotatedAt:     now.Add(-80 * 24 * time.Hour),
+		PreviousLinodeID:  0,
+		PreviousExpiresAt: time.Time{},
+		RotationCount:     0,
 	}
 
 	// After rotation
@@ -226,13 +226,13 @@ func TestTokenStateAfterRotation(t *testing.T) {
 
 	// Update state
 	newState := &TokenState{
-		Label:              state.Label,
-		CurrentLinodeID:    newToken.ID,
-		CurrentTokenValue:  newToken.Token,
-		LastRotatedAt:      now,
-		PreviousLinodeID:   state.CurrentLinodeID,    // Old becomes previous
-		PreviousExpiresAt:  oldExpiry,                // Old expiry
-		RotationCount:      state.RotationCount + 1,
+		Label:             state.Label,
+		CurrentLinodeID:   newToken.ID,
+		CurrentTokenValue: newToken.Token,
+		LastRotatedAt:     now,
+		PreviousLinodeID:  state.CurrentLinodeID, // Old becomes previous
+		PreviousExpiresAt: oldExpiry,             // Old expiry
+		RotationCount:     state.RotationCount + 1,
 	}
 
 	assert.Equal(t, 200, newState.CurrentLinodeID)

@@ -1,3 +1,10 @@
+account:
+  label: "e2e-test"
+  team: "test-team"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
 daemon:
   mode: "daemon"
   check_interval: "5s"
@@ -8,8 +15,6 @@ rotation:
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
@@ -22,4 +27,4 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/e2e/test-daemon"
+        path: "e2e/test-daemon"

@@ -23,7 +23,7 @@ func TestNewClient_AppRoleAuth(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -67,33 +67,30 @@ func TestNewClient_AuthFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to authenticate")
 }
 
-func TestWriteToken(t *testing.T) {
-	writeCount := 0
+func TestWriteToken_PATCHSuccess(t *testing.T) {
+	var lastMethod string
 	var lastWrittenData map[string]interface{}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/auth/approle/login" {
 			w.WriteHeader(http.StatusOK)
-			response := map[string]interface{}{
+			json.NewEncoder(w).Encode(map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
-			}
-			json.NewEncoder(w).Encode(response)
+			})
 			return
 		}
 
-		if r.URL.Path == "/v1/secret/data/test/path" && (r.Method == "POST" || r.Method == "PUT") {
-			writeCount++
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			lastMethod = r.Method
 			var payload map[string]interface{}
 			json.NewDecoder(r.Body).Decode(&payload)
 			lastWrittenData = payload
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": map[string]interface{}{
-					"version": 1,
-				},
+				"data": map[string]interface{}{"version": 1},
 			})
 			return
 		}
@@ -102,36 +99,203 @@ func TestWriteToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &Config{
-		Address:   server.URL,
-		RoleID:    "test-role-id",
-		SecretID:  "test-secret-id",
-		MountPath: "secret",
-	}
-
-	client, err := NewClient(config)
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = client.WriteToken(ctx, "test/path", "my-secret-token")
+	err = client.WriteToken(context.Background(), "test/path", "", "my-secret-token")
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, writeCount)
-	assert.NotNil(t, lastWrittenData)
-
-	// Verify the data structure
+	assert.Equal(t, "PATCH", lastMethod, "WriteToken should use PATCH when it succeeds")
 	data, ok := lastWrittenData["data"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "my-secret-token", data["token"])
 }
 
-func TestReadToken(t *testing.T) {
+func TestWriteToken_FallbackOn404(t *testing.T) {
+	var methods []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			})
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			methods = append(methods, r.Method)
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(map[string]interface{}{"errors": []string{"no data at path"}})
+				return
+			}
+			// POST/PUT fallback succeeds
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"version": 1},
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
+	require.NoError(t, err)
+
+	err = client.WriteToken(context.Background(), "test/path", "custom-key", "my-token")
+	require.NoError(t, err)
+
+	require.Len(t, methods, 2)
+	assert.Equal(t, "PATCH", methods[0], "should try PATCH first")
+	assert.Contains(t, []string{"PUT", "POST"}, methods[1], "should fall back to full write on 404 using PUT or POST")
+}
+
+func TestWriteToken_FallbackOn405_PreservesSiblingKeys(t *testing.T) {
+	var methods []string
+	var writtenPayload map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			})
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			methods = append(methods, r.Method)
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				json.NewEncoder(w).Encode(map[string]interface{}{"errors": []string{"method not allowed"}})
+				return
+			}
+			if r.Method == "GET" {
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"data": map[string]interface{}{
+						"data":     map[string]interface{}{"sibling-key": "preserve-me", "old-key": "also-keep"},
+						"metadata": map[string]interface{}{"version": 1},
+					},
+				})
+				return
+			}
+			// PUT/POST write
+			json.NewDecoder(r.Body).Decode(&writtenPayload)
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"version": 2},
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
+	require.NoError(t, err)
+
+	err = client.WriteToken(context.Background(), "test/path", "custom-key", "new-token-value")
+	require.NoError(t, err)
+
+	require.Len(t, methods, 3, "should PATCH, GET, then PUT/POST")
+	assert.Equal(t, "PATCH", methods[0])
+	assert.Equal(t, "GET", methods[1])
+	assert.Contains(t, []string{"PUT", "POST"}, methods[2])
+
+	// Verify the written data contains both the new key and existing sibling keys
+	require.NotNil(t, writtenPayload)
+	dataMap, ok := writtenPayload["data"].(map[string]interface{})
+	require.True(t, ok, "payload should have data key")
+	assert.Equal(t, "new-token-value", dataMap["custom-key"], "should contain the new token")
+	assert.Equal(t, "preserve-me", dataMap["sibling-key"], "should preserve existing sibling key")
+	assert.Equal(t, "also-keep", dataMap["old-key"], "should preserve all existing keys")
+}
+
+func TestWriteToken_FallbackOn403(t *testing.T) {
+	var methods []string
+	existingData := map[string]interface{}{
+		"data": map[string]interface{}{
+			"data":     map[string]interface{}{"sibling-key": "preserve-me"},
+			"metadata": map[string]interface{}{"version": 1},
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			})
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			methods = append(methods, r.Method)
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]interface{}{"errors": []string{"permission denied"}})
+				return
+			}
+			if r.Method == "GET" {
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(existingData)
+				return
+			}
+			// PUT/POST write succeeds
+			var payload map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&payload)
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"version": 2},
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
+	require.NoError(t, err)
+
+	err = client.WriteToken(context.Background(), "test/path", "custom-key", "my-token")
+	require.NoError(t, err)
+
+	require.Len(t, methods, 3, "should PATCH, then GET (read existing), then PUT/POST (write merged)")
+	assert.Equal(t, "PATCH", methods[0], "should try PATCH first")
+	assert.Equal(t, "GET", methods[1], "should read existing data for merge")
+	assert.Contains(t, []string{"PUT", "POST"}, methods[2], "should write merged data")
+}
+
+func TestReadSecretKey_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/auth/approle/login" {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -144,7 +308,7 @@ func TestReadToken(t *testing.T) {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
 					"data": map[string]interface{}{
-						"token": "retrieved-secret-token",
+						"my-key": "my-secret-value",
 					},
 					"metadata": map[string]interface{}{
 						"version": 1,
@@ -170,19 +334,35 @@ func TestReadToken(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	token, err := client.ReadToken(ctx, "test/path")
+	value, err := client.ReadSecretKey(ctx, "test/path", "my-key")
 	require.NoError(t, err)
-	assert.Equal(t, "retrieved-secret-token", token)
+	assert.Equal(t, "my-secret-value", value)
 }
 
-func TestReadToken_NotFound(t *testing.T) {
+func TestReadSecretKey_MissingKey(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/auth/approle/login" {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" && r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			response := map[string]interface{}{
+				"data": map[string]interface{}{
+					"data": map[string]interface{}{
+						"other-key": "other-value",
+					},
+					"metadata": map[string]interface{}{
+						"version": 1,
+					},
 				},
 			}
 			json.NewEncoder(w).Encode(response)
@@ -204,9 +384,10 @@ func TestReadToken_NotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	token, err := client.ReadToken(ctx, "nonexistent/path")
+	value, err := client.ReadSecretKey(ctx, "test/path", "nonexistent-key")
 	require.Error(t, err)
-	assert.Empty(t, token)
+	assert.Empty(t, value)
+	assert.Contains(t, err.Error(), "nonexistent-key")
 }
 
 func TestWriteTokenState(t *testing.T) {
@@ -217,7 +398,7 @@ func TestWriteTokenState(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -248,13 +429,13 @@ func TestWriteTokenState(t *testing.T) {
 	require.NoError(t, err)
 
 	state := &models.TokenState{
-		Label:              "test-token",
-		CurrentLinodeID:    123,
-		CurrentTokenValue:  "secret-value",
-		LastRotatedAt:      time.Now(),
-		PreviousLinodeID:   100,
-		PreviousExpiresAt:  time.Now().Add(60 * 24 * time.Hour),
-		RotationCount:      5,
+		Label:             "test-token",
+		CurrentLinodeID:   123,
+		CurrentTokenValue: "secret-value",
+		LastRotatedAt:     time.Now(),
+		PreviousLinodeID:  100,
+		PreviousExpiresAt: time.Now().Add(60 * 24 * time.Hour),
+		RotationCount:     5,
 	}
 
 	ctx := context.Background()
@@ -276,7 +457,7 @@ func TestReadTokenState(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -289,12 +470,12 @@ func TestReadTokenState(t *testing.T) {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
 					"custom_metadata": map[string]interface{}{
-						"label":                "test-token",
-						"current_linode_id":    "123",
-						"last_rotated_at":      now.Format(time.RFC3339),
-						"previous_linode_id":   "100",
-						"previous_expires_at":  now.Add(60 * 24 * time.Hour).Format(time.RFC3339),
-						"rotation_count":       "5",
+						"label":               "test-token",
+						"current_linode_id":   "123",
+						"last_rotated_at":     now.Format(time.RFC3339),
+						"previous_linode_id":  "100",
+						"previous_expires_at": now.Add(60 * 24 * time.Hour).Format(time.RFC3339),
+						"rotation_count":      "5",
 					},
 				},
 			}
@@ -333,7 +514,7 @@ func TestReadTokenState_NotFound(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}

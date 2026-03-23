@@ -21,114 +21,127 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// LoadGlob loads and merges multiple configuration files matching a glob pattern
-func LoadGlob(pattern string) (*Config, error) {
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, fmt.Errorf("failed to glob pattern %s: %w", pattern, err)
+// LoadAll loads one or more configuration files matching a path or glob pattern.
+// Each file is loaded independently — accounts are not merged across files.
+func LoadAll(pathOrPattern string) ([]*Config, error) {
+	var paths []string
+
+	if containsGlobChar(pathOrPattern) {
+		matches, err := filepath.Glob(pathOrPattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to glob pattern %s: %w", pathOrPattern, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("no config files found matching pattern: %s", pathOrPattern)
+		}
+		paths = matches
+	} else {
+		paths = []string{pathOrPattern}
 	}
 
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("no config files found matching pattern: %s", pattern)
-	}
-
-	var merged *Config
-	for _, path := range matches {
+	configs := make([]*Config, 0, len(paths))
+	for _, path := range paths {
 		cfg, err := Load(path)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load config file %s: %w", path, err)
 		}
-
-		if merged == nil {
-			merged = cfg
-		} else {
-			merged = MergeConfigs(merged, cfg)
-		}
+		configs = append(configs, cfg)
 	}
 
-	return merged, nil
+	return configs, nil
 }
 
-// MergeConfigs merges two configurations, with the second config overriding the first
-// for non-empty values. Tokens are appended rather than replaced.
-func MergeConfigs(base, override *Config) *Config {
-	merged := &Config{}
-
-	// Merge Daemon config
-	merged.Daemon = base.Daemon
-	if override.Daemon.Mode != "" {
-		merged.Daemon.Mode = override.Daemon.Mode
-	}
-	if override.Daemon.CheckInterval != "" {
-		merged.Daemon.CheckInterval = override.Daemon.CheckInterval
-	}
-	if override.Daemon.DryRun {
-		merged.Daemon.DryRun = override.Daemon.DryRun
-	}
-
-	// Merge Rotation config
-	merged.Rotation = base.Rotation
-	if override.Rotation.ThresholdPercent != 0 {
-		merged.Rotation.ThresholdPercent = override.Rotation.ThresholdPercent
-	}
-
-	// Merge Vault config
-	merged.Vault = base.Vault
-	if override.Vault.Address != "" {
-		merged.Vault.Address = override.Vault.Address
-	}
-	if override.Vault.RoleID != "" {
-		merged.Vault.RoleID = override.Vault.RoleID
-	}
-	if override.Vault.SecretID != "" {
-		merged.Vault.SecretID = override.Vault.SecretID
-	}
-	if override.Vault.MountPath != "" {
-		merged.Vault.MountPath = override.Vault.MountPath
-	}
-
-	// Merge Observability config
-	merged.Observability = base.Observability
-	if override.Observability.OTelEndpoint != "" {
-		merged.Observability.OTelEndpoint = override.Observability.OTelEndpoint
-	}
-	if override.Observability.LogLevel != "" {
-		merged.Observability.LogLevel = override.Observability.LogLevel
-	}
-
-	// Merge tokens (append, don't replace)
-	merged.Tokens = append([]TokenConfig{}, base.Tokens...)
-	merged.Tokens = append(merged.Tokens, override.Tokens...)
-
-	return merged
-}
-
-// LoadAndValidate loads a configuration file (or glob pattern), applies defaults,
-// and validates it
-func LoadAndValidate(pathOrPattern string) (*Config, error) {
-	var cfg *Config
-	var err error
-
-	// Check if it's a glob pattern (contains * or ?)
-	if containsGlobChar(pathOrPattern) {
-		cfg, err = LoadGlob(pathOrPattern)
-	} else {
-		cfg, err = Load(pathOrPattern)
-	}
-
+// LoadAndValidate loads configuration file(s), applies defaults, and validates.
+// Returns a slice of configs — one per file. The config marked global: true
+// (or the first file if none is marked) provides default settings that are
+// propagated to other configs.
+func LoadAndValidate(pathOrPattern string) ([]*Config, error) {
+	configs, err := LoadAll(pathOrPattern)
 	if err != nil {
 		return nil, err
 	}
 
-	// Apply defaults
-	cfg.ApplyDefaults()
-
-	// Validate
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("config validation failed: %w", err)
+	// Find the global config (if any) and use it as the source for defaults.
+	// If no config is marked global, the first config serves as the default source.
+	var globalCfg *Config
+	for _, cfg := range configs {
+		if cfg.IsGlobal() {
+			if globalCfg != nil {
+				return nil, fmt.Errorf("multiple configs marked as global: true")
+			}
+			globalCfg = cfg
+		}
+	}
+	if globalCfg == nil {
+		globalCfg = configs[0]
 	}
 
-	return cfg, nil
+	globalCfg.ApplyDefaults()
+
+	for _, cfg := range configs {
+		if cfg != globalCfg {
+			propagateGlobals(globalCfg, cfg)
+			cfg.ApplyDefaults()
+		}
+	}
+
+	// Validate all configs
+	for i, cfg := range configs {
+		if err := cfg.Validate(); err != nil {
+			if len(configs) > 1 {
+				return nil, fmt.Errorf("config file %d: %w", i+1, err)
+			}
+			return nil, fmt.Errorf("config validation failed: %w", err)
+		}
+	}
+
+	// Validate account label uniqueness and ensure at least one account exists
+	seenLabels := make(map[string]int)
+	for i, cfg := range configs {
+		if cfg.Account.Label == "" {
+			continue
+		}
+		if prev, exists := seenLabels[cfg.Account.Label]; exists {
+			return nil, fmt.Errorf("duplicate account label %q in config files %d and %d", cfg.Account.Label, prev, i+1)
+		}
+		seenLabels[cfg.Account.Label] = i + 1
+	}
+	if len(seenLabels) == 0 {
+		return nil, fmt.Errorf("at least one config file must have an account block")
+	}
+
+	return configs, nil
+}
+
+// propagateGlobals copies global settings from the primary config to a
+// secondary config for any fields the secondary config doesn't set.
+func propagateGlobals(primary, secondary *Config) {
+	// Note: Daemon.DryRun is not propagated because a bool zero-value (false)
+	// is indistinguishable from "not set". Daemon settings are global-only.
+
+	// Rotation
+	if secondary.Rotation.ThresholdPercent == 0 {
+		secondary.Rotation.ThresholdPercent = primary.Rotation.ThresholdPercent
+	}
+
+	// Vault
+	if secondary.Vault.Address == "" {
+		secondary.Vault.Address = primary.Vault.Address
+	}
+	if secondary.Vault.RoleID == "" {
+		secondary.Vault.RoleID = primary.Vault.RoleID
+	}
+	if secondary.Vault.SecretID == "" {
+		secondary.Vault.SecretID = primary.Vault.SecretID
+	}
+	if secondary.Vault.MountPath == "" {
+		secondary.Vault.MountPath = primary.Vault.MountPath
+	}
+
+	// Note: Observability settings are NOT propagated because they are global-only.
+	// Telemetry/logging is initialized once from the primary config and applies
+	// to the entire process. Per-account observability overrides are ignored
+	// (with a warning logged in main.go).
 }
 
 // containsGlobChar checks if a path contains glob characters

@@ -1,3 +1,10 @@
+account:
+  label: "e2e-test"
+  team: "test-team"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
 daemon:
   mode: "one-shot"
   dry_run: false
@@ -7,8 +14,6 @@ rotation:
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
@@ -21,4 +26,4 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/e2e/test-create"
+        path: "e2e/test-create"

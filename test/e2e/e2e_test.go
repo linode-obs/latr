@@ -151,7 +151,7 @@ func initializeVault() error {
 	// Create policy
 	policy := `
 path "secret/data/e2e/*" {
-  capabilities = ["create", "read", "update", "delete"]
+  capabilities = ["create", "read", "update", "patch", "delete"]
 }
 path "secret/metadata/e2e/*" {
   capabilities = ["create", "read", "update", "list", "delete"]
@@ -384,18 +384,22 @@ func TestE2E_CreateToken(t *testing.T) {
 	resetMockLinode(t)
 
 	// Create config file using environment variable references
-	configContent := `daemon:
+	configContent := `account:
+  label: "e2e-create"
+  team: "test-team"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
+daemon:
   mode: "one-shot"
   dry_run: false
 
 rotation:
   threshold_percent: 10
-  prune_expired: false
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
@@ -455,18 +459,22 @@ func TestE2E_RotateToken(t *testing.T) {
 	t.Logf("Setup old token with ID: %d, expiry: %s", oldTokenID, expiry.Format(time.RFC3339))
 
 	// Create config file using environment variable references
-	configContent := `daemon:
+	configContent := `account:
+  label: "e2e-rotate"
+  team: "test-team"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
+daemon:
   mode: "one-shot"
   dry_run: false
 
 rotation:
   threshold_percent: 10
-  prune_expired: false
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
@@ -524,18 +532,22 @@ func TestE2E_DryRunMode(t *testing.T) {
 	resetMockLinode(t)
 
 	// Create config file with dry_run enabled using environment variable references
-	configContent := `daemon:
+	configContent := `account:
+  label: "e2e-dryrun"
+  team: "test-team"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
+daemon:
   mode: "one-shot"
   dry_run: true
 
 rotation:
   threshold_percent: 10
-  prune_expired: false
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
@@ -587,19 +599,23 @@ func TestE2E_DaemonMode(t *testing.T) {
 	setupMockLinodeToken(t, "e2e-test-daemon", expiry)
 
 	// Create config file using environment variable references
-	configContent := `daemon:
+	configContent := `account:
+  label: "e2e-daemon"
+  team: "test-team"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
+daemon:
   mode: "daemon"
   check_interval: "5s"
   dry_run: false
 
 rotation:
   threshold_percent: 10
-  prune_expired: false
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
