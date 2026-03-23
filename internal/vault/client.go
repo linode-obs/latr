@@ -65,13 +65,18 @@ func authenticateAppRole(client *api.Client, roleID, secretID string) error {
 	return nil
 }
 
-// WriteToken writes a token value to a KV v2 path
-func (c *Client) WriteToken(ctx context.Context, path string, token string) error {
+// WriteToken writes a token value to a KV v2 path.
+// The key parameter specifies the key name within the secret. If empty, defaults to "token".
+func (c *Client) WriteToken(ctx context.Context, path, key, token string) error {
+	if key == "" {
+		key = "token"
+	}
+
 	fullPath := fmt.Sprintf("%s/data/%s", c.mountPath, path)
 
 	data := map[string]interface{}{
 		"data": map[string]interface{}{
-			"token": token,
+			key: token,
 		},
 	}
 
@@ -107,6 +112,32 @@ func (c *Client) ReadToken(ctx context.Context, path string) (string, error) {
 	}
 
 	return tokenValue, nil
+}
+
+// ReadSecretKey reads a specific key from a KV v2 secret at the given path
+func (c *Client) ReadSecretKey(ctx context.Context, path, key string) (string, error) {
+	fullPath := fmt.Sprintf("%s/data/%s", c.mountPath, path)
+
+	secret, err := c.client.Logical().ReadWithContext(ctx, fullPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read secret from vault path %s: %w", path, err)
+	}
+
+	if secret == nil || secret.Data == nil {
+		return "", fmt.Errorf("no data found at vault path: %s", path)
+	}
+
+	data, ok := secret.Data["data"].(map[string]interface{})
+	if !ok {
+		return "", fmt.Errorf("invalid data structure at vault path: %s", path)
+	}
+
+	value, ok := data[key].(string)
+	if !ok {
+		return "", fmt.Errorf("key %q not found at vault path: %s", key, path)
+	}
+
+	return value, nil
 }
 
 // WriteTokenState writes token state to Vault metadata

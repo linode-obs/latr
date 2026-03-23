@@ -1,0 +1,20 @@
+# Global configuration — shared defaults for all accounts.
+# This file is identified by global: true. File order doesn't matter.
+global: true
+
+daemon:
+  mode: "daemon"
+  check_interval: "30m"
+  dry_run: false
+
+rotation:
+  threshold_percent: 10
+
+vault:
+  address: "https://vault.example.com"
+  role_id: "${VAULT_ROLE_ID}"
+  secret_id: "${VAULT_SECRET_ID}"
+  mount_path: "secret"
+
+observability:
+  log_level: "info"

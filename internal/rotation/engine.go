@@ -21,7 +21,7 @@ type LinodeClient interface {
 
 // VaultClient defines the interface for Vault operations
 type VaultClient interface {
-	WriteToken(ctx context.Context, path, token string) error
+	WriteToken(ctx context.Context, path, key, token string) error
 	ReadToken(ctx context.Context, path string) (string, error)
 	WriteTokenState(ctx context.Context, path string, state *models.TokenState) error
 	ReadTokenState(ctx context.Context, path string) (*models.TokenState, error)
@@ -302,7 +302,7 @@ func (e *Engine) storeTokenInBackends(ctx context.Context, storageConfigs []conf
 
 	for _, storage := range storageConfigs {
 		if storage.Type == "vault" {
-			if err := e.vaultClient.WriteToken(ctx, storage.Path, token); err != nil {
+			if err := e.vaultClient.WriteToken(ctx, storage.Path, storage.Key, token); err != nil {
 				return err
 			}
 			attrs := append([]any{

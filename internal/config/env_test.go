@@ -12,20 +12,21 @@ import (
 // TestLoadConfigFileWithEnvVars verifies that environment variables are properly
 // expanded when loading a config file, simulating the e2e test scenario
 func TestLoadConfigFileWithEnvVars(t *testing.T) {
-	// Create a temporary config file with env var references
-	// This simulates what the e2e tests do
-	configContent := `daemon:
+	configContent := `account:
+  label: "production"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
+daemon:
   mode: "one-shot"
   dry_run: true
 
 rotation:
   threshold_percent: 10
-  prune_expired: false
 
 vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 observability:
@@ -41,13 +42,11 @@ tokens:
         path: "e2e/test-dryrun"
 `
 
-	// Write config file to tmp
 	tmpFile := filepath.Join(os.TempDir(), "test-latr-config.yaml")
 	err := os.WriteFile(tmpFile, []byte(configContent), 0644)
 	require.NoError(t, err)
 	defer os.Remove(tmpFile)
 
-	// Set environment variables (simulating what runLatr() does in e2e tests)
 	os.Setenv("VAULT_ROLE_ID", "test-role-id-123")
 	os.Setenv("VAULT_SECRET_ID", "test-secret-id-456")
 	defer func() {
@@ -55,14 +54,12 @@ tokens:
 		os.Unsetenv("VAULT_SECRET_ID")
 	}()
 
-	// Load the config file (this calls os.Expand internally)
 	cfg, err := Load(tmpFile)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	// Verify environment variables were expanded correctly
-	assert.Equal(t, "test-role-id-123", cfg.Vault.RoleID, "VAULT_ROLE_ID should be expanded")
-	assert.Equal(t, "test-secret-id-456", cfg.Vault.SecretID, "VAULT_SECRET_ID should be expanded")
+	assert.Equal(t, "test-role-id-123", cfg.Account.Vault.RoleID, "VAULT_ROLE_ID should be expanded")
+	assert.Equal(t, "test-secret-id-456", cfg.Account.Vault.SecretID, "VAULT_SECRET_ID should be expanded")
 	assert.Equal(t, "http://localhost:8200", cfg.Vault.Address)
 	assert.Equal(t, "one-shot", cfg.Daemon.Mode)
 	assert.True(t, cfg.Daemon.DryRun)
@@ -71,10 +68,14 @@ tokens:
 // TestLoadConfigFileWithComplexEnvVarValues verifies that env vars with special
 // characters are handled correctly
 func TestLoadConfigFileWithComplexEnvVarValues(t *testing.T) {
-	configContent := `vault:
+	configContent := `account:
+  label: "production"
+  vault:
+    role_id: "${VAULT_ROLE_ID}"
+    secret_id: "${VAULT_SECRET_ID}"
+
+vault:
   address: "http://localhost:8200"
-  role_id: "${VAULT_ROLE_ID}"
-  secret_id: "${VAULT_SECRET_ID}"
   mount_path: "secret"
 
 tokens:
@@ -92,11 +93,10 @@ tokens:
 	require.NoError(t, err)
 	defer os.Remove(tmpFile)
 
-	// Test with values that contain hyphens, underscores, and numbers
 	testCases := []struct {
-		name      string
-		roleID    string
-		secretID  string
+		name     string
+		roleID   string
+		secretID string
 	}{
 		{
 			name:     "Simple alphanumeric",
@@ -133,8 +133,8 @@ tokens:
 			require.NoError(t, err)
 			require.NotNil(t, cfg)
 
-			assert.Equal(t, tc.roleID, cfg.Vault.RoleID)
-			assert.Equal(t, tc.secretID, cfg.Vault.SecretID)
+			assert.Equal(t, tc.roleID, cfg.Account.Vault.RoleID)
+			assert.Equal(t, tc.secretID, cfg.Account.Vault.SecretID)
 		})
 	}
 }

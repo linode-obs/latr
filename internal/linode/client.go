@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/linode/linodego"
@@ -18,17 +17,17 @@ type Client struct {
 	token  string
 }
 
-// NewClient creates a new Linode API client
-func NewClient(token string) *Client {
+// NewClient creates a new Linode API client.
+// The apiURL parameter sets the Linode API base URL. If empty, the linodego
+// default (https://api.linode.com) is used.
+func NewClient(token, apiURL string) *Client {
 	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
 	oauth2Client := oauth2.NewClient(context.Background(), tokenSource)
 
 	linodeClient := linodego.NewClient(oauth2Client)
 
-	// Support base URL override for testing
-	baseURL := os.Getenv("LINODE_API_URL")
-	if baseURL != "" {
-		linodeClient.SetBaseURL(baseURL)
+	if apiURL != "" {
+		linodeClient.SetBaseURL(apiURL)
 	}
 
 	return &Client{

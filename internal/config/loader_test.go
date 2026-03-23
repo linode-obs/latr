@@ -10,15 +10,18 @@ import (
 )
 
 func TestLoadSingleFile(t *testing.T) {
-	// Create a temporary config file
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `
+account:
+  label: "production"
+  vault:
+    role_id: "test-role-id"
+    secret_id: "test-secret-id"
+
 vault:
   address: "https://vault.example.com"
-  role_id: "test-role-id"
-  secret_id: "test-secret-id"
   mount_path: "secret"
 
 tokens:
@@ -34,14 +37,12 @@ tokens:
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
 
-	// Load the config
 	cfg, err := Load(configPath)
 	require.NoError(t, err)
 	require.NotNil(t, cfg)
 
-	// Verify loaded config
+	assert.Equal(t, "production", cfg.Account.Label)
 	assert.Equal(t, "https://vault.example.com", cfg.Vault.Address)
-	assert.Equal(t, "test-role-id", cfg.Vault.RoleID)
 	require.Len(t, cfg.Tokens, 1)
 	assert.Equal(t, "test-token", cfg.Tokens[0].Label)
 }
@@ -53,15 +54,16 @@ func TestLoadFileNotFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to read config file")
 }
 
-func TestLoadGlobPattern(t *testing.T) {
-	// Create temporary config files
+func TestLoadAllMultipleFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	config1 := `
+account:
+  label: "production"
+  team: "platform-team"
+
 vault:
   address: "https://vault.example.com"
-  role_id: "test-role-id"
-  secret_id: "test-secret-id"
 
 tokens:
   - label: "token1"
@@ -74,6 +76,14 @@ tokens:
 `
 
 	config2 := `
+account:
+  label: "staging"
+  team: "platform-team"
+  vault:
+    role_id: "staging-role-id"
+    secret_id: "staging-secret-id"
+  api_url: "https://api.staging.example.com"
+
 tokens:
   - label: "token2"
     team: "team2"
@@ -89,109 +99,145 @@ tokens:
 	err = os.WriteFile(filepath.Join(tmpDir, "config2.yaml"), []byte(config2), 0644)
 	require.NoError(t, err)
 
-	// Load with glob pattern
 	pattern := filepath.Join(tmpDir, "*.yaml")
-	cfg, err := LoadGlob(pattern)
+	configs, err := LoadAll(pattern)
 	require.NoError(t, err)
-	require.NotNil(t, cfg)
+	require.Len(t, configs, 2)
 
-	// Verify merged config
-	assert.Equal(t, "https://vault.example.com", cfg.Vault.Address)
-	require.Len(t, cfg.Tokens, 2)
+	// Each config should have its own account
+	labels := []string{configs[0].Account.Label, configs[1].Account.Label}
+	assert.Contains(t, labels, "production")
+	assert.Contains(t, labels, "staging")
 
-	// Tokens should be present
-	labels := []string{cfg.Tokens[0].Label, cfg.Tokens[1].Label}
-	assert.Contains(t, labels, "token1")
-	assert.Contains(t, labels, "token2")
+	// Tokens should NOT be merged
+	for _, cfg := range configs {
+		require.Len(t, cfg.Tokens, 1)
+	}
 }
 
-func TestLoadGlobNoMatches(t *testing.T) {
-	tmpDir := t.TempDir()
-	pattern := filepath.Join(tmpDir, "*.yaml")
-
-	cfg, err := LoadGlob(pattern)
-	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "no config files found")
-}
-
-func TestMergeConfigs(t *testing.T) {
-	config1 := &Config{
-		Vault: VaultConfig{
-			Address:   "https://vault.example.com",
-			RoleID:    "role-id",
-			SecretID:  "secret-id",
-			MountPath: "secret",
-		},
-		Daemon: DaemonConfig{
-			Mode:          "daemon",
-			CheckInterval: "30m",
-		},
-		Rotation: RotationConfig{
-			ThresholdPercent: 10,
-		},
-		Tokens: []TokenConfig{
-			{Label: "token1", Team: "team1", Validity: "90d", Scopes: "*", Storage: []StorageConfig{{Type: "vault", Path: "path1"}}},
-		},
-	}
-
-	config2 := &Config{
-		Tokens: []TokenConfig{
-			{Label: "token2", Team: "team2", Validity: "180d", Scopes: "*", Storage: []StorageConfig{{Type: "vault", Path: "path2"}}},
-		},
-	}
-
-	merged := MergeConfigs(config1, config2)
-
-	// Vault config should come from config1
-	assert.Equal(t, "https://vault.example.com", merged.Vault.Address)
-	assert.Equal(t, "role-id", merged.Vault.RoleID)
-
-	// Daemon config should come from config1
-	assert.Equal(t, "daemon", merged.Daemon.Mode)
-
-	// Tokens should be merged
-	require.Len(t, merged.Tokens, 2)
-	labels := []string{merged.Tokens[0].Label, merged.Tokens[1].Label}
-	assert.Contains(t, labels, "token1")
-	assert.Contains(t, labels, "token2")
-}
-
-func TestMergeConfigsOverride(t *testing.T) {
-	config1 := &Config{
-		Vault: VaultConfig{
-			Address: "https://vault1.example.com",
-		},
-		Rotation: RotationConfig{
-			ThresholdPercent: 10,
-		},
-	}
-
-	config2 := &Config{
-		Vault: VaultConfig{
-			Address: "https://vault2.example.com",
-		},
-		Rotation: RotationConfig{
-			ThresholdPercent: 15,
-		},
-	}
-
-	merged := MergeConfigs(config1, config2)
-
-	// Second config should override first for non-empty values
-	assert.Equal(t, "https://vault2.example.com", merged.Vault.Address)
-	assert.Equal(t, 15, merged.Rotation.ThresholdPercent)
-}
-
-func TestLoadAndValidate(t *testing.T) {
+func TestLoadAllSingleFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
 	configContent := `
+account:
+  label: "production"
+  vault:
+    role_id: "test-role-id"
+    secret_id: "test-secret-id"
+
 vault:
   address: "https://vault.example.com"
-  role_id: "test-role-id"
-  secret_id: "test-secret-id"
+
+tokens:
+  - label: "test-token"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "path"
+`
+
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	configs, err := LoadAll(configPath)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	assert.Equal(t, "production", configs[0].Account.Label)
+}
+
+func TestLoadAllNoMatches(t *testing.T) {
+	tmpDir := t.TempDir()
+	pattern := filepath.Join(tmpDir, "*.yaml")
+
+	configs, err := LoadAll(pattern)
+	require.Error(t, err)
+	assert.Nil(t, configs)
+	assert.Contains(t, err.Error(), "no config files found")
+}
+
+func TestLoadAndValidateMultipleFiles(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config1 := `
+account:
+  label: "production"
+  vault:
+    role_id: "test-role-id"
+    secret_id: "test-secret-id"
+
+daemon:
+  mode: "daemon"
+  check_interval: "30m"
+
+rotation:
+  threshold_percent: 10
+
+vault:
+  address: "https://vault.example.com"
+
+tokens:
+  - label: "token1"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "path1"
+`
+
+	config2 := `
+account:
+  label: "staging"
+  vault:
+    role_id: "staging-role-id"
+    secret_id: "staging-secret-id"
+  api_url: "https://api.staging.example.com"
+
+tokens:
+  - label: "token2"
+    validity: "180d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "path2"
+`
+
+	err := os.WriteFile(filepath.Join(tmpDir, "config1.yaml"), []byte(config1), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tmpDir, "config2.yaml"), []byte(config2), 0644)
+	require.NoError(t, err)
+
+	pattern := filepath.Join(tmpDir, "*.yaml")
+	configs, err := LoadAndValidate(pattern)
+	require.NoError(t, err)
+	require.Len(t, configs, 2)
+
+	// Global settings should be propagated to second config
+	assert.Equal(t, "https://vault.example.com", configs[1].Vault.Address)
+	assert.Equal(t, "staging-role-id", configs[1].Account.Vault.RoleID)
+	assert.Equal(t, "daemon", configs[1].Daemon.Mode)
+	assert.Equal(t, 10, configs[1].Rotation.ThresholdPercent)
+
+	// Account-specific settings should remain independent
+	assert.Equal(t, "production", configs[0].Account.Label)
+	assert.Equal(t, "staging", configs[1].Account.Label)
+	assert.Equal(t, "https://api.staging.example.com", configs[1].Account.APIURL)
+}
+
+func TestLoadAndValidateSingleFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.yaml")
+
+	configContent := `
+account:
+  label: "production"
+  vault:
+    role_id: "test-role-id"
+    secret_id: "test-secret-id"
+
+vault:
+  address: "https://vault.example.com"
 
 tokens:
   - label: "test-token"
@@ -206,26 +252,204 @@ tokens:
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
 
-	// Load and validate
-	cfg, err := LoadAndValidate(configPath)
+	configs, err := LoadAndValidate(configPath)
 	require.NoError(t, err)
-	require.NotNil(t, cfg)
+	require.Len(t, configs, 1)
 
-	// Defaults should be applied
-	assert.Equal(t, "daemon", cfg.Daemon.Mode)
-	assert.Equal(t, "30m", cfg.Daemon.CheckInterval)
-	assert.Equal(t, 10, cfg.Rotation.ThresholdPercent)
+	assert.Equal(t, "daemon", configs[0].Daemon.Mode)
+	assert.Equal(t, "30m", configs[0].Daemon.CheckInterval)
+	assert.Equal(t, 10, configs[0].Rotation.ThresholdPercent)
+	assert.Equal(t, "https://api.linode.com", configs[0].Account.APIURL)
+}
+
+func TestLoadAndValidateGlobalsOnlyPlusAccounts(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	globals := `
+global: true
+
+daemon:
+  mode: "daemon"
+  check_interval: "30m"
+
+rotation:
+  threshold_percent: 10
+
+vault:
+  address: "https://vault.example.com"
+  role_id: "global-role-id"
+  secret_id: "global-secret-id"
+
+observability:
+  log_level: "info"
+`
+
+	account := `
+account:
+  label: "lcid-1234"
+  team: "platform-team"
+
+tokens:
+  - label: "my-token"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "secret/data/tokens/my-token"
+`
+
+	err := os.WriteFile(filepath.Join(tmpDir, "globals.yaml"), []byte(globals), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tmpDir, "account.yaml"), []byte(account), 0644)
+	require.NoError(t, err)
+
+	pattern := filepath.Join(tmpDir, "*.yaml")
+	configs, err := LoadAndValidate(pattern)
+	require.NoError(t, err)
+
+	// Should have 2 configs — global + account
+	require.Len(t, configs, 2)
+
+	// Find the global config
+	var globalIdx, acctIdx int
+	for i, cfg := range configs {
+		if cfg.IsGlobal() {
+			globalIdx = i
+		} else {
+			acctIdx = i
+		}
+	}
+	assert.True(t, configs[globalIdx].IsGlobal())
+
+	// Account config should have inherited global settings
+	acct := configs[acctIdx]
+	assert.Equal(t, "lcid-1234", acct.Account.Label)
+	assert.Equal(t, "https://vault.example.com", acct.Vault.Address)
+	assert.Equal(t, "global-role-id", acct.Vault.RoleID)
+	assert.Equal(t, "daemon", acct.Daemon.Mode)
+	assert.Equal(t, 10, acct.Rotation.ThresholdPercent)
+}
+
+func TestLoadAndValidateOnlyGlobalConfig_Fails(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	globals := `
+global: true
+
+daemon:
+  mode: "daemon"
+
+vault:
+  address: "https://vault.example.com"
+`
+
+	err := os.WriteFile(filepath.Join(tmpDir, "globals.yaml"), []byte(globals), 0644)
+	require.NoError(t, err)
+
+	pattern := filepath.Join(tmpDir, "*.yaml")
+	configs, err := LoadAndValidate(pattern)
+	require.Error(t, err)
+	assert.Nil(t, configs)
+	assert.Contains(t, err.Error(), "at least one config file must have an account block")
+}
+
+func TestLoadAndValidateMultipleGlobals_Fails(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	globals1 := `
+global: true
+vault:
+  address: "https://vault1.example.com"
+`
+	globals2 := `
+global: true
+vault:
+  address: "https://vault2.example.com"
+`
+	account := `
+account:
+  label: "test"
+tokens:
+  - label: "t"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "p"
+`
+
+	os.WriteFile(filepath.Join(tmpDir, "a-globals1.yaml"), []byte(globals1), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "b-globals2.yaml"), []byte(globals2), 0644)
+	os.WriteFile(filepath.Join(tmpDir, "c-account.yaml"), []byte(account), 0644)
+
+	pattern := filepath.Join(tmpDir, "*.yaml")
+	configs, err := LoadAndValidate(pattern)
+	require.Error(t, err)
+	assert.Nil(t, configs)
+	assert.Contains(t, err.Error(), "multiple configs marked as global")
+}
+
+func TestLoadAndValidateDuplicateAccountLabels(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	config1 := `
+account:
+  label: "same-label"
+  vault:
+    role_id: "r1"
+    secret_id: "s1"
+
+vault:
+  address: "https://vault.example.com"
+
+tokens:
+  - label: "token1"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "path1"
+`
+
+	config2 := `
+account:
+  label: "same-label"
+  vault:
+    role_id: "r2"
+    secret_id: "s2"
+
+tokens:
+  - label: "token2"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "path2"
+`
+
+	err := os.WriteFile(filepath.Join(tmpDir, "config1.yaml"), []byte(config1), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tmpDir, "config2.yaml"), []byte(config2), 0644)
+	require.NoError(t, err)
+
+	pattern := filepath.Join(tmpDir, "*.yaml")
+	configs, err := LoadAndValidate(pattern)
+	require.Error(t, err)
+	assert.Nil(t, configs)
+	assert.Contains(t, err.Error(), "duplicate account label")
+	assert.Contains(t, err.Error(), "same-label")
 }
 
 func TestLoadAndValidateInvalidConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yaml")
 
-	// Missing required vault fields
 	configContent := `
+vault:
+  address: "https://vault.example.com"
+
 tokens:
   - label: "test-token"
-    team: "platform-team"
     validity: "90d"
     scopes: "*"
     storage:
@@ -236,8 +460,8 @@ tokens:
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
 
-	cfg, err := LoadAndValidate(configPath)
+	configs, err := LoadAndValidate(configPath)
 	require.Error(t, err)
-	assert.Nil(t, cfg)
-	assert.Contains(t, err.Error(), "vault address is required")
+	assert.Nil(t, configs)
+	assert.Contains(t, err.Error(), "account label is required")
 }

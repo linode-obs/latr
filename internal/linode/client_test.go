@@ -10,7 +10,7 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
-	client := NewClient("test-token")
+	client := NewClient("test-token", "")
 	require.NotNil(t, client)
 	assert.Equal(t, "test-token", client.token)
 }
@@ -18,7 +18,7 @@ func TestNewClient(t *testing.T) {
 func TestCreateToken(t *testing.T) {
 	// This test will use a mock server to avoid real API calls
 	// For now, we'll write a test that verifies the method signature and structure
-	client := NewClient("test-token")
+	client := NewClient("test-token", "")
 	require.NotNil(t, client)
 
 	ctx := context.Background()

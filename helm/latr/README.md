@@ -23,18 +23,57 @@ latr is an automation tool that manages and automatically rotates Linode API tok
 
 ```bash
 helm install latr ./helm/latr \
-  --set secrets.linodeToken="your-linode-token" \
+  --set config.account.label="lcid-1234" \
   --set secrets.vaultRoleId="your-vault-role-id" \
   --set secrets.vaultSecretId="your-vault-secret-id" \
+  --set secrets.linodeToken="your-linode-token" \
   --set config.vault.address="https://vault.example.com:8200"
 ```
 
-### Installation with Custom Values
+### Installation with Vault Token Source (Recommended)
+
+When using `account.token.storage`, the Linode API token is read from Vault at
+startup — no plaintext secrets in config or K8s Secrets.
 
 Create a `custom-values.yaml` file:
 
 ```yaml
 config:
+  account:
+    label: "lcid-1234"
+    team: "platform-team"
+    token:
+      storage:
+        - type: vault
+          path: "secret/data/linode/accounts"
+
+  vault:
+    address: "https://vault.example.com:8200"
+
+  tokens:
+    - label: "production-api-token"
+      team: "platform-team"
+      validity: "90d"
+      scopes: "*"
+      storage:
+        - type: "vault"
+          path: "secret/data/linode/tokens/production"
+
+secrets:
+  vaultRoleId: "your-vault-role-id"
+  vaultSecretId: "your-vault-secret-id"
+```
+
+### Installation with LINODE_TOKEN Env Var
+
+If not using `account.token.storage`, the `LINODE_TOKEN` env var is used:
+
+```yaml
+config:
+  account:
+    label: "production"
+    team: "platform-team"
+
   vault:
     address: "https://vault.example.com:8200"
 
@@ -134,6 +173,19 @@ The following table lists the configurable parameters of the latr chart and thei
 | `podDisruptionBudget.enabled` | Enable PodDisruptionBudget | `false` |
 | `podDisruptionBudget.minAvailable` | Minimum available pods | `1` |
 
+### Account Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `config.account.label` | Account label (required). Also used as storage key | `""` |
+| `config.account.team` | Team that owns this account | `""` |
+| `config.account.vault.roleId` | Vault AppRole role ID for this account | `"${VAULT_ROLE_ID}"` |
+| `config.account.vault.secretId` | Vault AppRole secret ID for this account | `"${VAULT_SECRET_ID}"` |
+| `config.account.vault.address` | Override global Vault address for this account | `""` |
+| `config.account.vault.mountPath` | Override global Vault mount path for this account | `""` |
+| `config.account.apiUrl` | Linode API URL override | `""` (uses `https://api.linode.com`) |
+| `config.account.token` | Account token config — storage source + optional rotation | `{}` |
+
 ### latr Configuration Parameters
 
 | Parameter | Description | Default |
@@ -143,8 +195,8 @@ The following table lists the configurable parameters of the latr chart and thei
 | `config.daemon.dryRun` | Enable dry-run mode | `false` |
 | `config.rotation.thresholdPercent` | Rotation threshold percentage | `10` |
 | `config.rotation.pruneExpired` | Prune expired tokens | `false` |
-| `config.vault.address` | Vault server address | `""` |
-| `config.vault.mountPath` | Vault KV v2 mount path | `secret` |
+| `config.vault.address` | Global Vault server address | `""` |
+| `config.vault.mountPath` | Global Vault KV v2 mount path | `secret` |
 | `config.observability.otelEndpoint` | OpenTelemetry endpoint | `""` |
 | `config.observability.logLevel` | Log level | `info` |
 | `config.tokens` | Token configurations (list) | `[]` |
@@ -174,12 +226,20 @@ The following table lists the configurable parameters of the latr chart and thei
 
 ## Examples
 
-### Example 1: Basic Daemon Mode
+### Example 1: Basic Daemon Mode with Vault Token Source
 
-Deploy latr in daemon mode with a single token:
+Deploy latr in daemon mode, reading the Linode API token from Vault:
 
 ```yaml
 config:
+  account:
+    label: "lcid-1234"
+    team: "platform"
+    token:
+      storage:
+        - type: vault
+          path: "secret/data/linode/accounts"
+
   daemon:
     mode: daemon
     checkInterval: "1h"
@@ -197,7 +257,6 @@ config:
           path: "secret/data/linode/tokens/my-token"
 
 secrets:
-  linodeToken: "your-linode-token"
   vaultRoleId: "your-vault-role-id"
   vaultSecretId: "your-vault-secret-id"
 ```
@@ -206,6 +265,14 @@ secrets:
 
 ```yaml
 config:
+  account:
+    label: "lcid-1234"
+    team: "platform"
+    token:
+      storage:
+        - type: vault
+          path: "secret/data/linode/accounts"
+
   vault:
     address: "https://vault.example.com:8200"
 
@@ -233,6 +300,14 @@ config:
 
 ```yaml
 config:
+  account:
+    label: "lcid-1234"
+    team: "ops"
+    token:
+      storage:
+        - type: vault
+          path: "secret/data/linode/accounts"
+
   vault:
     address: "https://vault.example.com:8200"
 

@@ -1,6 +1,41 @@
-# Example configuration for Linode API Token Rotator (latr)
+# Example single-file configuration for Linode API Token Rotator (latr)
+#
+# This file shows a complete single-file setup. For multi-file setups with
+# a global config and per-account configs, see examples/multi-account/.
 
-# Global daemon settings
+# Account configuration (required unless global: true)
+account:
+  label: "lcid-1234" # Identifies this account; used as the key when reading/writing via storage
+  team: "platform-team" # Team that owns this account
+
+  # Per-account Vault AppRole credentials (optional — falls back to global vault config, then env vars)
+  # vault:
+  #   role_id: "account-specific-role-id"
+  #   secret_id: "account-specific-secret-id"
+  #   address: "https://other-vault.example.com"   # Override global vault address
+  #   mount_path: "custom-mount"                    # Override global vault mount path
+
+  # api_url: "https://api.staging.example.com" # Override API endpoint (default: https://api.linode.com)
+
+  # Account token configuration (optional).
+  # If storage is set, the Linode API token is read from storage at startup.
+  # Key within the secret is derived from account.label.
+  # If not set, the LINODE_TOKEN environment variable is used.
+  #
+  # If label/validity/scopes are also set, latr manages (rotates) this token.
+  # Storage is required for managed tokens — the rotated token is written back
+  # to the same path using account.label as the key.
+  # The operator is responsible for restarting latr to pick up the new token.
+  token:
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/accounts"
+    # Uncomment to enable rotation management:
+    # label: "latr-main-token"
+    # validity: "180d"
+    # scopes: "*"
+
+# Daemon settings
 daemon:
   mode: "daemon" # "daemon" or "one-shot"
   check_interval: "30m" # How often to check tokens (daemon mode only)
@@ -10,12 +45,11 @@ daemon:
 rotation:
   threshold_percent: 10 # Rotate when <=10% of validity remains
 
-# Vault configuration
-# Environment variables are automatically expanded using ${VAR_NAME} or $VAR_NAME syntax
+# Vault configuration (global defaults — can be overridden per-account)
 vault:
   address: "https://vault.example.com"
-  role_id: "${VAULT_ROLE_ID}" # Expanded from VAULT_ROLE_ID environment variable
-  secret_id: "${VAULT_SECRET_ID}" # Expanded from VAULT_SECRET_ID environment variable
+  role_id: "${VAULT_ROLE_ID}" # Expanded from environment variable
+  secret_id: "${VAULT_SECRET_ID}" # Expanded from environment variable
   mount_path: "secret" # KV v2 mount path
 
 # Observability settings
@@ -41,11 +75,3 @@ tokens:
     storage:
       - type: "vault"
         path: "secret/data/linode/tokens/backup"
-
-  - label: "short-lived-token"
-    team: "dev-team"
-    validity: "7d"
-    scopes: "linodes:read_write"
-    storage:
-      - type: "vault"
-        path: "secret/data/linode/tokens/dev"

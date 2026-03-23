@@ -17,23 +17,32 @@ type Engine interface {
 	ProcessToken(ctx context.Context, tokenConfig config.TokenConfig, thresholdPercent int) error
 }
 
+// AccountEntry represents an account with its associated engine and tokens
+type AccountEntry struct {
+	Account config.AccountConfig
+	Tokens  []config.TokenConfig
+	Engine  Engine
+}
+
 // Scheduler manages the execution schedule for token rotation
 type Scheduler struct {
-	config *config.Config
-	engine Engine
+	daemon   config.DaemonConfig
+	rotation config.RotationConfig
+	accounts []AccountEntry
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(cfg *config.Config, engine Engine) *Scheduler {
+func NewScheduler(daemon config.DaemonConfig, rotation config.RotationConfig, accounts []AccountEntry) *Scheduler {
 	return &Scheduler{
-		config: cfg,
-		engine: engine,
+		daemon:   daemon,
+		rotation: rotation,
+		accounts: accounts,
 	}
 }
 
 // Run starts the scheduler based on the configured mode
 func (s *Scheduler) Run(ctx context.Context) error {
-	if s.config.Daemon.Mode == "one-shot" {
+	if s.daemon.Mode == "one-shot" {
 		return s.runOnce(ctx)
 	}
 	return s.runDaemon(ctx)
@@ -50,10 +59,10 @@ func (s *Scheduler) runOnce(ctx context.Context) error {
 // runDaemon runs the rotation cycle at regular intervals
 func (s *Scheduler) runDaemon(ctx context.Context) error {
 	logger := observability.GetLogger()
-	attrs := append([]any{slog.String("check_interval", s.config.Daemon.CheckInterval)}, observability.TraceAttrs(ctx)...)
+	attrs := append([]any{slog.String("check_interval", s.daemon.CheckInterval)}, observability.TraceAttrs(ctx)...)
 	logger.InfoContext(ctx, "Running in daemon mode", attrs...)
 
-	interval, err := time.ParseDuration(s.config.Daemon.CheckInterval)
+	interval, err := time.ParseDuration(s.daemon.CheckInterval)
 	if err != nil {
 		return fmt.Errorf("invalid check interval: %w", err)
 	}
@@ -84,7 +93,7 @@ func (s *Scheduler) runDaemon(ctx context.Context) error {
 	}
 }
 
-// executeCycle processes all configured tokens
+// executeCycle processes all tokens across all accounts
 func (s *Scheduler) executeCycle(ctx context.Context) error {
 	logger := observability.GetLogger()
 
@@ -93,36 +102,55 @@ func (s *Scheduler) executeCycle(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "ExecuteRotationCycle")
 	defer span.End()
 
-	tokenCount := int64(len(s.config.Tokens))
-	span.SetAttributes(attribute.Int64("tokens.count", tokenCount))
+	var totalTokens int64
+	for _, acct := range s.accounts {
+		totalTokens += int64(len(acct.Tokens))
+	}
+	span.SetAttributes(
+		attribute.Int64("tokens.count", totalTokens),
+		attribute.Int("accounts.count", len(s.accounts)),
+	)
 
-	attrs := append([]any{slog.Int64("token_count", tokenCount)}, observability.TraceAttrs(ctx)...)
+	attrs := append([]any{
+		slog.Int64("token_count", totalTokens),
+		slog.Int("account_count", len(s.accounts)),
+	}, observability.TraceAttrs(ctx)...)
 	logger.InfoContext(ctx, "Starting rotation cycle", attrs...)
 
 	// Record total configured tokens
-	observability.RecordTokenCount(ctx, tokenCount)
+	observability.RecordTokenCount(ctx, totalTokens)
 
-	if tokenCount == 0 {
+	if totalTokens == 0 {
 		logger.InfoContext(ctx, "No tokens configured", observability.TraceAttrs(ctx)...)
 		span.SetStatus(codes.Ok, "no tokens configured")
 		return nil
 	}
 
-	// Process each token
-	for _, tokenConfig := range s.config.Tokens {
-		// Determine threshold (use token-specific if set, otherwise global)
-		threshold := s.config.Rotation.ThresholdPercent
-		if tokenConfig.RotationThreshold > 0 {
-			threshold = tokenConfig.RotationThreshold
-		}
+	// Process each account's tokens
+	for _, acct := range s.accounts {
+		acctAttrs := append([]any{
+			slog.String("account_label", acct.Account.Label),
+			slog.String("account_team", acct.Account.Team),
+			slog.Int("token_count", len(acct.Tokens)),
+		}, observability.TraceAttrs(ctx)...)
+		logger.InfoContext(ctx, "Processing account", acctAttrs...)
 
-		if err := s.engine.ProcessToken(ctx, tokenConfig, threshold); err != nil {
-			attrs := append([]any{
-				slog.String("token_label", tokenConfig.Label),
-				slog.Any("error", err),
-			}, observability.TraceAttrs(ctx)...)
-			logger.ErrorContext(ctx, "Failed to process token", attrs...)
-			// Continue processing other tokens
+		for _, tokenConfig := range acct.Tokens {
+			// Determine threshold (use token-specific if set, otherwise global)
+			threshold := s.rotation.ThresholdPercent
+			if tokenConfig.RotationThreshold > 0 {
+				threshold = tokenConfig.RotationThreshold
+			}
+
+			if err := acct.Engine.ProcessToken(ctx, tokenConfig, threshold); err != nil {
+				attrs := append([]any{
+					slog.String("account_label", acct.Account.Label),
+					slog.String("token_label", tokenConfig.Label),
+					slog.Any("error", err),
+				}, observability.TraceAttrs(ctx)...)
+				logger.ErrorContext(ctx, "Failed to process token", attrs...)
+				// Continue processing other tokens
+			}
 		}
 	}
 

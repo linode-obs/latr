@@ -1,0 +1,26 @@
+# Production account configuration.
+# Inherits daemon, rotation, vault, and observability from globals.yaml.
+
+account:
+  label: "lcid-1234"
+  team: "platform-team"
+  vault:
+    role_id: "prod-role-id"       # Override global credentials for this account
+    secret_id: "prod-secret-id"
+  token:
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/accounts"
+    # Managed — latr will rotate this token
+    label: "latr-prod-main"
+    validity: "180d"
+    scopes: "*"
+
+tokens:
+  - label: "prod-api-token"
+    team: "platform-team"
+    validity: "90d"
+    scopes: "linodes:read_write"
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/tokens/prod-api"

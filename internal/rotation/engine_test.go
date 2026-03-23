@@ -39,8 +39,8 @@ type MockVaultClient struct {
 	mock.Mock
 }
 
-func (m *MockVaultClient) WriteToken(ctx context.Context, path, token string) error {
-	args := m.Called(ctx, path, token)
+func (m *MockVaultClient) WriteToken(ctx context.Context, path, key, token string) error {
+	args := m.Called(ctx, path, key, token)
 	return args.Error(0)
 }
 
@@ -93,7 +93,7 @@ func TestEngine_ProcessToken_NewToken(t *testing.T) {
 
 	// Vault operations
 	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/new-token").Return(nil, nil)
-	mockVault.On("WriteToken", mock.Anything, "secret/data/test/new-token", "new-secret-token").Return(nil)
+	mockVault.On("WriteToken", mock.Anything, "secret/data/test/new-token", "", "new-secret-token").Return(nil)
 	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/new-token", mock.Anything).Return(nil)
 
 	engine := &Engine{
@@ -196,7 +196,7 @@ func TestEngine_ProcessToken_ExistingToken_NeedsRotation(t *testing.T) {
 	mockLinode.On("CreateToken", mock.Anything, "existing-token", "*", mock.Anything).Return(newToken, nil)
 
 	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/existing-token").Return(existingState, nil)
-	mockVault.On("WriteToken", mock.Anything, "secret/data/test/existing-token", "new-rotated-token").Return(nil)
+	mockVault.On("WriteToken", mock.Anything, "secret/data/test/existing-token", "", "new-rotated-token").Return(nil)
 	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/existing-token", mock.MatchedBy(func(state *models.TokenState) bool {
 		return state.CurrentLinodeID == 456 &&
 			state.PreviousLinodeID == 123 &&
@@ -315,7 +315,7 @@ func TestEngine_ProcessToken_VaultWriteFails_StateTracked(t *testing.T) {
 	mockLinode.On("CreateToken", mock.Anything, "new-token", "*", mock.Anything).Return(createdToken, nil)
 
 	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/new-token").Return(nil, nil)
-	mockVault.On("WriteToken", mock.Anything, "secret/data/test/new-token", "new-secret-token").Return(errors.New("vault error"))
+	mockVault.On("WriteToken", mock.Anything, "secret/data/test/new-token", "", "new-secret-token").Return(errors.New("vault error"))
 	// State should still be written to track that we need to retry Vault write
 	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/new-token", mock.Anything).Return(nil)
 

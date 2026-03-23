@@ -1,0 +1,28 @@
+# Staging account configuration.
+# Inherits defaults from globals.yaml. Overrides rotation threshold
+# and uses a different API endpoint.
+
+account:
+  label: "lcid-5678"
+  team: "platform-team"
+  api_url: "https://api.staging.example.com"
+  # No account.vault — inherits global vault credentials
+  token:
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/accounts"
+
+rotation:
+  threshold_percent: 20  # Rotate earlier in staging
+
+observability:
+  log_level: "debug"  # More verbose logging in staging
+
+tokens:
+  - label: "staging-api-token"
+    team: "platform-team"
+    validity: "30d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/tokens/staging-api"

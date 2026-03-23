@@ -46,26 +46,37 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load Linode API token from environment
-	linodeToken := os.Getenv("LINODE_TOKEN")
-	if linodeToken == "" {
-		logger.Error("Missing required environment variable", slog.String("variable", "LINODE_TOKEN"))
-		os.Exit(1)
-	}
-
-	// Load and validate configuration
+	// Load and validate configuration(s)
 	logger.Info("Loading configuration", slog.String("path", *configPath))
-	cfg, err := config.LoadAndValidate(*configPath)
+	configs, err := config.LoadAndValidate(*configPath)
 	if err != nil {
 		logger.Error("Failed to load configuration", slog.Any("error", err))
 		os.Exit(1)
 	}
 
-	logger.Info("Configuration loaded successfully",
-		slog.String("mode", cfg.Daemon.Mode),
-		slog.Int("token_count", len(cfg.Tokens)),
-		slog.Int("rotation_threshold_percent", cfg.Rotation.ThresholdPercent),
-		slog.Bool("dry_run", cfg.Daemon.DryRun))
+	// Use global settings from the first config
+	primaryCfg := configs[0]
+
+	// Log each loaded configuration
+	var totalTokens int
+	for i, cfg := range configs {
+		tokenCount := len(cfg.AllTokens())
+		totalTokens += tokenCount
+		logger.Info("Configuration loaded",
+			slog.Int("config", i+1),
+			slog.String("account_label", cfg.Account.Label),
+			slog.Int("token_count", tokenCount))
+	}
+
+	// Log summary if multiple configs
+	if len(configs) > 1 {
+		logger.Info("All configurations loaded",
+			slog.Int("account_count", len(configs)),
+			slog.Int("total_token_count", totalTokens),
+			slog.String("mode", primaryCfg.Daemon.Mode),
+			slog.Int("rotation_threshold_percent", primaryCfg.Rotation.ThresholdPercent),
+			slog.Bool("dry_run", primaryCfg.Daemon.DryRun))
+	}
 
 	// Set up context with signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -73,9 +84,9 @@ func main() {
 	// Initialize OpenTelemetry
 	telemetryConfig := &observability.Config{
 		ServiceName:  "latr",
-		OTelEndpoint: cfg.Observability.OTelEndpoint,
-		Enabled:      cfg.Observability.OTelEndpoint != "",
-		LogLevel:     cfg.Observability.LogLevel,
+		OTelEndpoint: primaryCfg.Observability.OTelEndpoint,
+		Enabled:      primaryCfg.Observability.OTelEndpoint != "",
+		LogLevel:     primaryCfg.Observability.LogLevel,
 	}
 
 	telemetryCleanup, err := observability.Setup(ctx, telemetryConfig)
@@ -86,33 +97,106 @@ func main() {
 	logger = observability.GetLogger()
 	defer telemetryCleanup()
 
-	// Create Linode client
-	linodeClient := linode.NewClient(linodeToken)
-	logger.InfoContext(ctx, "Linode client initialized")
+	// Create per-account entries (each account gets its own Vault + Linode client)
+	accounts := make([]scheduler.AccountEntry, 0, len(configs))
+	for _, cfg := range configs {
+		// Skip globals-only configs (no account, just defaults)
+		if cfg.IsGlobal() {
+			continue
+		}
 
-	// Create Vault client
-	vaultConfig := &vault.Config{
-		Address:   cfg.Vault.Address,
-		RoleID:    cfg.Vault.RoleID,
-		SecretID:  cfg.Vault.SecretID,
-		MountPath: cfg.Vault.MountPath,
+		acctLabel := cfg.Account.Label
+
+		// Resolve Vault config: account.vault overrides global vault, then env var fallback
+		resolvedVault := cfg.Account.Vault.Resolved(cfg.Vault)
+
+		if resolvedVault.RoleID == "" {
+			resolvedVault.RoleID = os.Getenv("VAULT_ROLE_ID")
+		}
+		if resolvedVault.RoleID == "" {
+			logger.ErrorContext(ctx, "Vault role_id not set in config or VAULT_ROLE_ID env var",
+				slog.String("account_label", acctLabel))
+			os.Exit(1)
+		}
+
+		if resolvedVault.SecretID == "" {
+			resolvedVault.SecretID = os.Getenv("VAULT_SECRET_ID")
+		}
+		if resolvedVault.SecretID == "" {
+			logger.ErrorContext(ctx, "Vault secret_id not set in config or VAULT_SECRET_ID env var",
+				slog.String("account_label", acctLabel))
+			os.Exit(1)
+		}
+
+		vaultConfig := &vault.Config{
+			Address:   resolvedVault.Address,
+			RoleID:    resolvedVault.RoleID,
+			SecretID:  resolvedVault.SecretID,
+			MountPath: resolvedVault.MountPath,
+		}
+
+		vaultClient, err := vault.NewClient(vaultConfig)
+		if err != nil {
+			logger.ErrorContext(ctx, "Failed to create Vault client for account",
+				slog.String("account_label", acctLabel),
+				slog.Any("error", err),
+				slog.String("vault_address", resolvedVault.Address))
+			os.Exit(1)
+		}
+		logger.InfoContext(ctx, "Vault client initialized for account",
+			slog.String("account_label", acctLabel),
+			slog.String("vault_address", resolvedVault.Address))
+
+		// Resolve Linode API token: account.token.storage first, then env var fallback
+		var linodeToken string
+		if cfg.Account.Token != nil && cfg.Account.Token.HasStorage() {
+			for _, s := range cfg.Account.Token.Storage {
+				if s.Type == "vault" {
+					logger.InfoContext(ctx, "Reading Linode token from Vault",
+						slog.String("account_label", acctLabel),
+						slog.String("vault_path", s.Path))
+
+					linodeToken, err = vaultClient.ReadSecretKey(ctx, s.Path, acctLabel)
+					if err != nil {
+						logger.ErrorContext(ctx, "Failed to read Linode token from Vault",
+							slog.String("account_label", acctLabel),
+							slog.String("vault_path", s.Path),
+							slog.Any("error", err))
+						os.Exit(1)
+					}
+					break
+				}
+			}
+		}
+		if linodeToken == "" {
+			linodeToken = os.Getenv("LINODE_TOKEN")
+		}
+		if linodeToken == "" {
+			logger.ErrorContext(ctx, "Linode token not available from account.token.storage or LINODE_TOKEN env var",
+				slog.String("account_label", acctLabel))
+			os.Exit(1)
+		}
+
+		linodeClient := linode.NewClient(linodeToken, cfg.Account.APIURL)
+		engine := rotation.NewEngine(linodeClient, vaultClient, primaryCfg.Daemon.DryRun)
+
+		tokens := cfg.AllTokens()
+
+		logger.InfoContext(ctx, "Initialized account",
+			slog.String("account_label", cfg.Account.Label),
+			slog.String("account_team", cfg.Account.Team),
+			slog.String("api_url", cfg.Account.APIURL),
+			slog.Int("token_count", len(tokens)))
+
+		accounts = append(accounts, scheduler.AccountEntry{
+			Account: cfg.Account,
+			Tokens:  tokens,
+			Engine:  engine,
+		})
 	}
-
-	vaultClient, err := vault.NewClient(vaultConfig)
-	if err != nil {
-		logger.ErrorContext(ctx, "Failed to create Vault client",
-			slog.Any("error", err),
-			slog.String("vault_address", cfg.Vault.Address))
-		os.Exit(1)
-	}
-	logger.InfoContext(ctx, "Vault client initialized and authenticated",
-		slog.String("vault_address", cfg.Vault.Address))
-
-	// Create rotation engine
-	engine := rotation.NewEngine(linodeClient, vaultClient, cfg.Daemon.DryRun)
 
 	// Create scheduler
-	sched := scheduler.NewScheduler(cfg, engine)
+	sched := scheduler.NewScheduler(primaryCfg.Daemon, primaryCfg.Rotation, accounts)
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)

@@ -113,7 +113,7 @@ func TestWriteToken(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	err = client.WriteToken(ctx, "test/path", "my-secret-token")
+	err = client.WriteToken(ctx, "test/path", "", "my-secret-token")
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, writeCount)
