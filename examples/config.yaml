@@ -49,3 +49,15 @@ tokens:
     storage:
       - type: "vault"
         path: "secret/data/linode/tokens/dev"
+
+  # Self token rotation: this entry manages the token set as LINODE_TOKEN.
+  # After rotation, latr swaps the Linode API client to the new token
+  # in-memory — no restart needed. Only one token may have self: true.
+  - label: "latr-main-token"
+    team: "platform-team"
+    validity: "180d"
+    scopes: "*"
+    self: true
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/tokens/latr-main"

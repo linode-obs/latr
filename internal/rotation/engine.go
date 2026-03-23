@@ -17,6 +17,7 @@ import (
 type LinodeClient interface {
 	CreateToken(ctx context.Context, label, scopes string, expiry time.Time) (*models.Token, error)
 	FindTokenByLabel(ctx context.Context, label string) ([]*models.Token, error)
+	SetToken(token string)
 }
 
 // VaultClient defines the interface for Vault operations
@@ -196,6 +197,16 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 		return fmt.Errorf("failed to update token state: %w", err)
 	}
 
+	// If this is the self token, update the Linode client in-memory
+	if tokenConfig.Self {
+		e.linodeClient.SetToken(newToken.Token)
+		attrs := append([]any{
+			slog.String("token_label", tokenConfig.Label),
+			slog.Int("new_token_id", newToken.ID),
+		}, observability.TraceAttrs(ctx)...)
+		logger.InfoContext(ctx, "Updated Linode client with new self token", attrs...)
+	}
+
 	// Record successful rotation
 	span.SetStatus(codes.Ok, "token created successfully")
 	observability.RecordRotation(ctx, tokenConfig.Label, true)
@@ -286,6 +297,17 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 		observability.RecordRotation(ctx, tokenConfig.Label, false)
 		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
 		return fmt.Errorf("failed to update token state: %w", err)
+	}
+
+	// If this is the self token, update the Linode client in-memory
+	if tokenConfig.Self {
+		e.linodeClient.SetToken(newToken.Token)
+		attrs := append([]any{
+			slog.String("token_label", tokenConfig.Label),
+			slog.Int("new_token_id", newToken.ID),
+			slog.Int("previous_token_id", existingToken.ID),
+		}, observability.TraceAttrs(ctx)...)
+		logger.InfoContext(ctx, "Updated Linode client with new self token", attrs...)
 	}
 
 	// Record successful rotation

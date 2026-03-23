@@ -121,9 +121,15 @@ config:
   #   validity: 90d
   #   scopes: "*"
   #   rotationThreshold: 10
+  #   self: false
   #   storage:
   #     - type: vault
   #       path: secret/data/linode/tokens/my-api-token
+  #
+  # Self token rotation:
+  # Set self: true on the token entry that corresponds to LINODE_TOKEN.
+  # After rotating, latr updates its Linode API client in-memory with the
+  # new token — no pod restart required. Only one token may have self: true.
 
 # Secrets configuration
 # These values should be provided via a separate values file or via --set flags

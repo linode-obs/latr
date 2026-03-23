@@ -37,6 +37,24 @@ func NewClient(token string) *Client {
 	}
 }
 
+// SetToken updates the client to use a new API token.
+// This recreates the underlying HTTP client with the new token,
+// allowing in-memory token rotation without restarting the process.
+func (c *Client) SetToken(token string) {
+	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
+	oauth2Client := oauth2.NewClient(context.Background(), tokenSource)
+
+	newClient := linodego.NewClient(oauth2Client)
+
+	baseURL := os.Getenv("LINODE_API_URL")
+	if baseURL != "" {
+		newClient.SetBaseURL(baseURL)
+	}
+
+	c.client = &newClient
+	c.token = token
+}
+
 // CreateToken creates a new Linode API token
 func (c *Client) CreateToken(ctx context.Context, label, scopes string, expiry time.Time) (*models.Token, error) {
 	createOpts := linodego.TokenCreateOptions{

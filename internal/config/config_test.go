@@ -380,6 +380,105 @@ tokens:
 	assert.Equal(t, "otel-from-env:4317", cfg.Observability.OTelEndpoint)
 }
 
+func TestValidateConfig_MultipleSelfTokens(t *testing.T) {
+	cfg := &Config{
+		Vault: VaultConfig{
+			Address:   "https://vault.example.com",
+			RoleID:    "test-role-id",
+			SecretID:  "test-secret-id",
+			MountPath: "secret",
+		},
+		Tokens: []TokenConfig{
+			{
+				Label:    "self-token-1",
+				Team:     "team",
+				Validity: "90d",
+				Scopes:   "*",
+				Self:     true,
+				Storage:  []StorageConfig{{Type: "vault", Path: "path1"}},
+			},
+			{
+				Label:    "self-token-2",
+				Team:     "team",
+				Validity: "90d",
+				Scopes:   "*",
+				Self:     true,
+				Storage:  []StorageConfig{{Type: "vault", Path: "path2"}},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "only one token may have self: true")
+}
+
+func TestValidateConfig_SingleSelfToken(t *testing.T) {
+	cfg := &Config{
+		Vault: VaultConfig{
+			Address:   "https://vault.example.com",
+			RoleID:    "test-role-id",
+			SecretID:  "test-secret-id",
+			MountPath: "secret",
+		},
+		Tokens: []TokenConfig{
+			{
+				Label:    "self-token",
+				Team:     "team",
+				Validity: "90d",
+				Scopes:   "*",
+				Self:     true,
+				Storage:  []StorageConfig{{Type: "vault", Path: "path1"}},
+			},
+			{
+				Label:    "other-token",
+				Team:     "team",
+				Validity: "90d",
+				Scopes:   "*",
+				Self:     false,
+				Storage:  []StorageConfig{{Type: "vault", Path: "path2"}},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.NoError(t, err)
+}
+
+func TestParseConfigWithSelfField(t *testing.T) {
+	yamlContent := `
+vault:
+  address: "https://vault.example.com"
+  role_id: "test-role-id"
+  secret_id: "test-secret-id"
+
+tokens:
+  - label: "self-token"
+    team: "platform-team"
+    validity: "90d"
+    scopes: "*"
+    self: true
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/tokens/self"
+  - label: "managed-token"
+    team: "platform-team"
+    validity: "180d"
+    scopes: "linodes:read_write"
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/tokens/managed"
+`
+
+	cfg, err := Parse([]byte(yamlContent))
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Len(t, cfg.Tokens, 2)
+
+	assert.True(t, cfg.Tokens[0].Self)
+	assert.False(t, cfg.Tokens[1].Self)
+}
+
 func TestParseConfigWithMissingEnvVar(t *testing.T) {
 	yamlContent := `
 vault:

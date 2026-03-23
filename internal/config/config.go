@@ -52,6 +52,7 @@ type TokenConfig struct {
 	Validity          string          `yaml:"validity"`
 	Scopes            string          `yaml:"scopes"`
 	RotationThreshold int             `yaml:"rotation_threshold"`
+	Self              bool            `yaml:"self"`
 	Storage           []StorageConfig `yaml:"storage"`
 }
 
@@ -125,10 +126,18 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("at least one token must be configured")
 	}
 
+	selfCount := 0
 	for i, token := range c.Tokens {
 		if err := c.validateToken(&token, i); err != nil {
 			return err
 		}
+		if token.Self {
+			selfCount++
+		}
+	}
+
+	if selfCount > 1 {
+		return fmt.Errorf("only one token may have self: true, found %d", selfCount)
 	}
 
 	return nil

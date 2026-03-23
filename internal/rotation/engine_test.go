@@ -34,6 +34,10 @@ func (m *MockLinodeClient) FindTokenByLabel(ctx context.Context, label string) (
 	return []*models.Token{args.Get(0).(*models.Token)}, args.Error(1)
 }
 
+func (m *MockLinodeClient) SetToken(token string) {
+	m.Called(token)
+}
+
 // MockVaultClient is a mock implementation of the Vault client
 type MockVaultClient struct {
 	mock.Mock
@@ -284,6 +288,176 @@ func TestEngine_ProcessToken_LinodeCreateFails(t *testing.T) {
 	mockLinode.AssertExpectations(t)
 	// Vault write should not be called if Linode creation fails
 	mockVault.AssertNotCalled(t, "WriteToken")
+}
+
+func TestEngine_ProcessToken_SelfToken_NewToken(t *testing.T) {
+	mockLinode := new(MockLinodeClient)
+	mockVault := new(MockVaultClient)
+
+	tokenConfig := config.TokenConfig{
+		Label:    "self-token",
+		Team:     "platform",
+		Validity: "90d",
+		Scopes:   "*",
+		Self:     true,
+		Storage: []config.StorageConfig{
+			{Type: "vault", Path: "secret/data/test/self-token"},
+		},
+	}
+
+	now := time.Now()
+	createdToken := &models.Token{
+		ID:        123,
+		Label:     "self-token",
+		Token:     "new-self-token-value",
+		CreatedAt: now,
+		ExpiresAt: now.Add(90 * 24 * time.Hour),
+		Scopes:    "*",
+		Validity:  90 * 24 * time.Hour,
+	}
+
+	// Token doesn't exist yet
+	mockLinode.On("FindTokenByLabel", mock.Anything, "self-token").Return(nil, nil)
+	mockLinode.On("CreateToken", mock.Anything, "self-token", "*", mock.Anything).Return(createdToken, nil)
+	mockLinode.On("SetToken", "new-self-token-value").Return()
+
+	// Vault operations
+	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/self-token").Return(nil, nil)
+	mockVault.On("WriteToken", mock.Anything, "secret/data/test/self-token", "new-self-token-value").Return(nil)
+	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/self-token", mock.Anything).Return(nil)
+
+	engine := &Engine{
+		linodeClient: mockLinode,
+		vaultClient:  mockVault,
+		dryRun:       false,
+	}
+
+	ctx := context.Background()
+	err := engine.ProcessToken(ctx, tokenConfig, 10)
+	require.NoError(t, err)
+
+	mockLinode.AssertExpectations(t)
+	mockVault.AssertExpectations(t)
+	// Verify SetToken was called with the new token value
+	mockLinode.AssertCalled(t, "SetToken", "new-self-token-value")
+}
+
+func TestEngine_ProcessToken_SelfToken_Rotation(t *testing.T) {
+	mockLinode := new(MockLinodeClient)
+	mockVault := new(MockVaultClient)
+
+	tokenConfig := config.TokenConfig{
+		Label:    "self-token",
+		Team:     "platform",
+		Validity: "90d",
+		Scopes:   "*",
+		Self:     true,
+		Storage: []config.StorageConfig{
+			{Type: "vault", Path: "secret/data/test/self-token"},
+		},
+	}
+
+	now := time.Now()
+	existingToken := &models.Token{
+		ID:        123,
+		Label:     "self-token",
+		Token:     "",
+		CreatedAt: now.Add(-81 * 24 * time.Hour), // Created 81 days ago
+		ExpiresAt: now.Add(9 * 24 * time.Hour),   // Expires in 9 days (10% remaining)
+		Scopes:    "*",
+		Validity:  90 * 24 * time.Hour,
+	}
+
+	newToken := &models.Token{
+		ID:        456,
+		Label:     "self-token",
+		Token:     "rotated-self-token-value",
+		CreatedAt: now,
+		ExpiresAt: now.Add(90 * 24 * time.Hour),
+		Scopes:    "*",
+		Validity:  90 * 24 * time.Hour,
+	}
+
+	existingState := &models.TokenState{
+		Label:           "self-token",
+		CurrentLinodeID: 123,
+		RotationCount:   2,
+	}
+
+	mockLinode.On("FindTokenByLabel", mock.Anything, "self-token").Return(existingToken, nil)
+	mockLinode.On("CreateToken", mock.Anything, "self-token", "*", mock.Anything).Return(newToken, nil)
+	mockLinode.On("SetToken", "rotated-self-token-value").Return()
+
+	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/self-token").Return(existingState, nil)
+	mockVault.On("WriteToken", mock.Anything, "secret/data/test/self-token", "rotated-self-token-value").Return(nil)
+	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/self-token", mock.MatchedBy(func(state *models.TokenState) bool {
+		return state.CurrentLinodeID == 456 &&
+			state.PreviousLinodeID == 123 &&
+			state.RotationCount == 3
+	})).Return(nil)
+
+	engine := &Engine{
+		linodeClient: mockLinode,
+		vaultClient:  mockVault,
+		dryRun:       false,
+	}
+
+	ctx := context.Background()
+	err := engine.ProcessToken(ctx, tokenConfig, 10)
+	require.NoError(t, err)
+
+	mockLinode.AssertExpectations(t)
+	mockVault.AssertExpectations(t)
+	mockLinode.AssertCalled(t, "SetToken", "rotated-self-token-value")
+}
+
+func TestEngine_ProcessToken_NonSelfToken_NoSetToken(t *testing.T) {
+	mockLinode := new(MockLinodeClient)
+	mockVault := new(MockVaultClient)
+
+	tokenConfig := config.TokenConfig{
+		Label:    "regular-token",
+		Team:     "platform",
+		Validity: "90d",
+		Scopes:   "*",
+		Self:     false,
+		Storage: []config.StorageConfig{
+			{Type: "vault", Path: "secret/data/test/regular-token"},
+		},
+	}
+
+	now := time.Now()
+	createdToken := &models.Token{
+		ID:        123,
+		Label:     "regular-token",
+		Token:     "new-regular-token",
+		CreatedAt: now,
+		ExpiresAt: now.Add(90 * 24 * time.Hour),
+		Scopes:    "*",
+		Validity:  90 * 24 * time.Hour,
+	}
+
+	mockLinode.On("FindTokenByLabel", mock.Anything, "regular-token").Return(nil, nil)
+	mockLinode.On("CreateToken", mock.Anything, "regular-token", "*", mock.Anything).Return(createdToken, nil)
+
+	mockVault.On("ReadTokenState", mock.Anything, "secret/data/test/regular-token").Return(nil, nil)
+	mockVault.On("WriteToken", mock.Anything, "secret/data/test/regular-token", "new-regular-token").Return(nil)
+	mockVault.On("WriteTokenState", mock.Anything, "secret/data/test/regular-token", mock.Anything).Return(nil)
+
+	engine := &Engine{
+		linodeClient: mockLinode,
+		vaultClient:  mockVault,
+		dryRun:       false,
+	}
+
+	ctx := context.Background()
+	err := engine.ProcessToken(ctx, tokenConfig, 10)
+	require.NoError(t, err)
+
+	mockLinode.AssertExpectations(t)
+	mockVault.AssertExpectations(t)
+	// SetToken should NOT be called for non-self tokens
+	mockLinode.AssertNotCalled(t, "SetToken")
 }
 
 func TestEngine_ProcessToken_VaultWriteFails_StateTracked(t *testing.T) {

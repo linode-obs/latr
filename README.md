@@ -11,6 +11,7 @@ A Go application for automatically managing and rotating Linode API tokens with 
 - **Multiple Tokens**: Manage multiple API tokens with different configurations
 - **Team Metadata**: Associate tokens with owning teams for organization
 - **Flexible Configuration**: Single YAML file or glob pattern support
+- **Self Token Rotation**: Can rotate its own Linode API token in-memory — no restart required
 - **Daemon or One-Shot**: Run as a long-running daemon or one-time execution
 - **Dry-Run Mode**: Test configuration without making changes
 - **OpenTelemetry Support**: Observability via traces, metrics, and logs
@@ -161,6 +162,18 @@ tokens:
     storage:
       - type: "vault"
         path: "secret/data/linode/tokens/backup"
+
+  # Self token rotation: rotates the token used by LINODE_TOKEN itself.
+  # After rotation, latr updates its Linode API client in-memory.
+  # Only one token may have self: true.
+  - label: "latr-main-token"
+    team: "platform-team"
+    validity: "180d"
+    scopes: "*"
+    self: true
+    storage:
+      - type: "vault"
+        path: "secret/data/linode/tokens/latr-main"
 ```
 
 ## Usage
@@ -225,6 +238,14 @@ Use a glob pattern to load multiple config files:
    - Current token ID and value
    - Previous token ID and expiry
    - Rotation count and timestamp
+
+### Self Token Rotation
+
+latr can rotate the very token it uses to authenticate to the Linode API (the
+`LINODE_TOKEN`). Set `self: true` on the token entry that corresponds to
+`LINODE_TOKEN`. After rotating, latr updates its Linode API client in-memory
+with the new token value — no pod restart or external mechanism is needed. Only
+one token may have `self: true`.
 
 ### Important Behaviors
 

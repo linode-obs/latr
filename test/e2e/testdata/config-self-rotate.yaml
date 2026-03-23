@@ -1,0 +1,25 @@
+daemon:
+  mode: "one-shot"
+  dry_run: false
+
+rotation:
+  threshold_percent: 10
+
+vault:
+  address: "http://localhost:8200"
+  role_id: "${VAULT_ROLE_ID}"
+  secret_id: "${VAULT_SECRET_ID}"
+  mount_path: "secret"
+
+observability:
+  log_level: "info"
+
+tokens:
+  - label: "e2e-test-self-rotate"
+    team: "test-team"
+    validity: "90d"
+    scopes: "*"
+    self: true
+    storage:
+      - type: "vault"
+        path: "secret/data/e2e/test-self-rotate"
