@@ -188,6 +188,44 @@ tokens:
 	assert.Equal(t, "managed-token", allTokens[1].Label)
 }
 
+func TestAllTokens_RespectsStorageKeyOverride(t *testing.T) {
+	cfg := &Config{
+		Account: AccountConfig{
+			Label: "lcid-1234",
+			Team:  "platform-team",
+			Token: &AccountTokenConfig{
+				Storage:  []StorageConfig{{Type: "vault", Path: "linode/accounts", Key: "custom-key"}},
+				Label:    "latr-main",
+				Validity: "180d",
+				Scopes:   "*",
+			},
+		},
+	}
+
+	allTokens := cfg.AllTokens()
+	require.Len(t, allTokens, 1)
+	assert.Equal(t, "custom-key", allTokens[0].Storage[0].Key, "should preserve explicit storage key")
+}
+
+func TestAllTokens_DefaultsKeyToAccountLabel(t *testing.T) {
+	cfg := &Config{
+		Account: AccountConfig{
+			Label: "lcid-1234",
+			Team:  "platform-team",
+			Token: &AccountTokenConfig{
+				Storage:  []StorageConfig{{Type: "vault", Path: "linode/accounts"}},
+				Label:    "latr-main",
+				Validity: "180d",
+				Scopes:   "*",
+			},
+		},
+	}
+
+	allTokens := cfg.AllTokens()
+	require.Len(t, allTokens, 1)
+	assert.Equal(t, "lcid-1234", allTokens[0].Storage[0].Key, "should default to account label when key is empty")
+}
+
 func TestParseConfigAccountTokenOnly(t *testing.T) {
 	yamlContent := `
 account:
@@ -441,6 +479,35 @@ func TestValidateConfig_StorageMissingPath(t *testing.T) {
 	err := cfg.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "path is required")
+}
+
+func TestValidateConfig_AccountTokenStorageKeyInvalid(t *testing.T) {
+	tests := []struct {
+		name string
+		key  string
+	}{
+		{"slash", "bad/key"},
+		{"dotdot", "bad..key"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				Account: AccountConfig{
+					Label: "production",
+					Vault: AccountVaultConfig{RoleID: "r", SecretID: "s"},
+					Token: &AccountTokenConfig{
+						Storage: []StorageConfig{{Type: "vault", Path: "secrets/token", Key: tt.key}},
+					},
+				},
+				Vault:  VaultConfig{Address: "https://vault.example.com"},
+				Tokens: []TokenConfig{{Label: "t", Validity: "90d", Scopes: "*", Storage: []StorageConfig{{Type: "vault", Path: "p"}}}},
+			}
+
+			err := cfg.Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "key must not contain")
+		})
+	}
 }
 
 func TestValidateConfig_NoTokensAtAll(t *testing.T) {

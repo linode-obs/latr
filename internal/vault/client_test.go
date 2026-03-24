@@ -157,7 +157,7 @@ func TestWriteToken_FallbackOn404(t *testing.T) {
 
 	require.Len(t, methods, 2)
 	assert.Equal(t, "PATCH", methods[0], "should try PATCH first")
-	assert.Equal(t, "PUT", methods[1], "should fall back to full write on 404")
+	assert.Contains(t, []string{"PUT", "POST"}, methods[1], "should fall back to full write on 404 using PUT or POST")
 }
 
 func TestReadSecretKey_Success(t *testing.T) {

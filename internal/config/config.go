@@ -274,6 +274,9 @@ func (c *Config) validateAccountToken() error {
 			if s.Path == "" {
 				return fmt.Errorf("account.token.storage[%d]: path is required", i)
 			}
+			if s.Key != "" && (strings.Contains(s.Key, "/") || strings.Contains(s.Key, "..")) {
+				return fmt.Errorf("account.token.storage[%d]: key must not contain '/' or '..' (got %q)", i, s.Key)
+			}
 		}
 	}
 
@@ -342,17 +345,23 @@ func validateToken(token *TokenConfig, prefix string) error {
 
 // AllTokens returns all tokens for this config, including the account's own
 // token (if managed) prepended to the list. The account token's storage key
-// is set to account.label so it reads/writes to the same location.
+// defaults to account.label so it reads/writes to the same location, but a
+// storage.key override is respected when provided.
 func (c *Config) AllTokens() []TokenConfig {
 	var tokens []TokenConfig
 	if c.Account.Token != nil && c.Account.Token.IsManaged() {
-		// Derive storage with account.label as the key
+		// Derive storage, respecting any explicit storage key and
+		// defaulting to account.label when none is set.
 		var storage []StorageConfig
 		for _, s := range c.Account.Token.Storage {
+			key := s.Key
+			if key == "" {
+				key = c.Account.Label
+			}
 			storage = append(storage, StorageConfig{
 				Type: s.Type,
 				Path: s.Path,
-				Key:  c.Account.Label,
+				Key:  key,
 			})
 		}
 		tokens = append(tokens, TokenConfig{
