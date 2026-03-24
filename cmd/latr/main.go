@@ -109,8 +109,21 @@ func main() {
 			slog.Bool("dry_run", primaryCfg.Daemon.DryRun))
 	}
 
+	if err := run(primaryCfg, configs); err != nil {
+		logger.Error("Fatal error", slog.Any("error", err))
+		os.Exit(1)
+	}
+}
+
+// run handles telemetry setup, client initialization, and scheduling. Extracted
+// from main so that deferred cleanup functions (telemetry flush, context cancel)
+// execute on all exit paths.
+func run(primaryCfg *config.Config, configs []*config.Config) error {
+	logger := observability.GetLogger()
+
 	// Set up context with signal handling for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Initialize OpenTelemetry
 	telemetryConfig := &observability.Config{
@@ -122,8 +135,7 @@ func main() {
 
 	telemetryCleanup, err := observability.Setup(ctx, telemetryConfig)
 	if err != nil {
-		logger.ErrorContext(ctx, "Failed to initialize telemetry", slog.Any("error", err))
-		os.Exit(1)
+		return fmt.Errorf("failed to initialize telemetry: %w", err)
 	}
 	logger = observability.GetLogger()
 	defer telemetryCleanup()
@@ -145,18 +157,14 @@ func main() {
 			resolvedVault.RoleID = os.Getenv("VAULT_ROLE_ID")
 		}
 		if resolvedVault.RoleID == "" {
-			logger.ErrorContext(ctx, "Vault role_id not set in config or VAULT_ROLE_ID env var",
-				slog.String("account_label", acctLabel))
-			os.Exit(1)
+			return fmt.Errorf("account %q: vault role_id not set in config or VAULT_ROLE_ID env var", acctLabel)
 		}
 
 		if resolvedVault.SecretID == "" {
 			resolvedVault.SecretID = os.Getenv("VAULT_SECRET_ID")
 		}
 		if resolvedVault.SecretID == "" {
-			logger.ErrorContext(ctx, "Vault secret_id not set in config or VAULT_SECRET_ID env var",
-				slog.String("account_label", acctLabel))
-			os.Exit(1)
+			return fmt.Errorf("account %q: vault secret_id not set in config or VAULT_SECRET_ID env var", acctLabel)
 		}
 
 		vaultConfig := &vault.Config{
@@ -168,11 +176,7 @@ func main() {
 
 		vaultClient, err := vault.NewClient(vaultConfig)
 		if err != nil {
-			logger.ErrorContext(ctx, "Failed to create Vault client for account",
-				slog.String("account_label", acctLabel),
-				slog.Any("error", err),
-				slog.String("vault_address", resolvedVault.Address))
-			os.Exit(1)
+			return fmt.Errorf("account %q: failed to create Vault client (address: %s): %w", acctLabel, resolvedVault.Address, err)
 		}
 		logger.InfoContext(ctx, "Vault client initialized for account",
 			slog.String("account_label", acctLabel),
@@ -194,11 +198,7 @@ func main() {
 
 					linodeToken, err = vaultClient.ReadSecretKey(ctx, s.Path, vaultKey)
 					if err != nil {
-						logger.ErrorContext(ctx, "Failed to read Linode token from Vault",
-							slog.String("account_label", acctLabel),
-							slog.String("vault_path", s.Path),
-							slog.Any("error", err))
-						os.Exit(1)
+						return fmt.Errorf("account %q: failed to read Linode token from Vault (path: %s): %w", acctLabel, s.Path, err)
 					}
 					break
 				}
@@ -212,9 +212,7 @@ func main() {
 			linodeToken = os.Getenv("LINODE_TOKEN")
 		}
 		if linodeToken == "" {
-			logger.ErrorContext(ctx, "Linode token not available from account.token.storage or LINODE_TOKEN env var",
-				slog.String("account_label", acctLabel))
-			os.Exit(1)
+			return fmt.Errorf("account %q: linode token not available from account.token.storage or LINODE_TOKEN env var", acctLabel)
 		}
 
 		// Resolve Linode API URL: config api_url takes precedence, then LINODE_API_URL env var
@@ -244,7 +242,6 @@ func main() {
 
 	// Create scheduler
 	sched := scheduler.NewScheduler(primaryCfg.Daemon, accounts)
-	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -264,11 +261,11 @@ func main() {
 	if err := sched.Run(ctx); err != nil {
 		if err == context.Canceled {
 			logger.Info("Shutdown complete")
-			os.Exit(0)
+			return nil
 		}
-		logger.Error("Scheduler error", slog.Any("error", err))
-		os.Exit(1)
+		return fmt.Errorf("scheduler error: %w", err)
 	}
 
 	logger.Info("latr finished successfully")
+	return nil
 }
