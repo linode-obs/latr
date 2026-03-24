@@ -195,7 +195,6 @@ The following table lists the configurable parameters of the latr chart and thei
 | `config.daemon.checkInterval` | Check interval for daemon mode | `30m` |
 | `config.daemon.dryRun` | Enable dry-run mode | `false` |
 | `config.rotation.thresholdPercent` | Rotation threshold percentage | `10` |
-| `config.rotation.pruneExpired` | Prune expired tokens | `false` |
 | `config.vault.address` | Global Vault server address | `""` |
 | `config.vault.mountPath` | Global Vault KV v2 mount path | `secret` |
 | `config.observability.otelEndpoint` | OpenTelemetry endpoint | `""` |

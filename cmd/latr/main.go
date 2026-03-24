@@ -212,15 +212,13 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Resolve Linode API URL: config value takes precedence, then env var fallback
-	linodeAPIURL := cfg.Account.APIURL
-	if linodeAPIURL == "" || linodeAPIURL == "https://api.linode.com" {
-		if envURL := os.Getenv("LINODE_API_URL"); envURL != "" {
-			linodeAPIURL = envURL
+		// Resolve Linode API URL: config api_url takes precedence, then LINODE_API_URL env var
+		linodeAPIURL := cfg.Account.APIURL
+		if linodeAPIURL == "" {
+			linodeAPIURL = os.Getenv("LINODE_API_URL")
 		}
-	}
 
-	linodeClient := linode.NewClient(linodeToken, linodeAPIURL)
+		linodeClient := linode.NewClient(linodeToken, linodeAPIURL)
 		engine := rotation.NewEngine(linodeClient, vaultClient, primaryCfg.Daemon.DryRun)
 
 		tokens := cfg.AllTokens()
@@ -228,7 +226,7 @@ func main() {
 		logger.InfoContext(ctx, "Initialized account",
 			slog.String("account_label", cfg.Account.Label),
 			slog.String("account_team", cfg.Account.Team),
-			slog.String("api_url", cfg.Account.APIURL),
+			slog.String("api_url", linodeAPIURL),
 			slog.Int("token_count", len(tokens)))
 
 		accounts = append(accounts, scheduler.AccountEntry{

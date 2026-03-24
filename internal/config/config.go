@@ -193,9 +193,9 @@ func (c *Config) ApplyDefaults() {
 	if c.Observability.LogLevel == "" {
 		c.Observability.LogLevel = "info"
 	}
-	if c.Account.APIURL == "" {
-		c.Account.APIURL = "https://api.linode.com"
-	}
+	// Note: Account.APIURL is intentionally NOT defaulted here.
+	// An empty APIURL allows main.go to fall back to LINODE_API_URL env var.
+	// The linode client defaults to https://api.linode.com when both are empty.
 }
 
 // IsGlobal returns true if this config is marked as the global defaults file
@@ -208,7 +208,12 @@ func (c *Config) IsGlobal() bool {
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
 	if c.Global {
-		// Global config only provides defaults — skip account/token validation
+		// Global config only provides defaults. It must not set account or
+		// tokens, because cmd/latr skips global configs entirely and any such
+		// settings would be silently ignored.
+		if c.Account.Label != "" || c.Account.Token != nil || len(c.Tokens) > 0 {
+			return fmt.Errorf("global config must not set account or tokens; move these settings to a non-global config file")
+		}
 		return nil
 	}
 
@@ -328,6 +333,7 @@ func (c *Config) AllTokens() []TokenConfig {
 		}
 		tokens = append(tokens, TokenConfig{
 			Label:             c.Account.Token.Label,
+			Team:              c.Account.Team,
 			Validity:          c.Account.Token.Validity,
 			Scopes:            c.Account.Token.Scopes,
 			RotationThreshold: c.Account.Token.RotationThreshold,

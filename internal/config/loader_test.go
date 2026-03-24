@@ -259,7 +259,7 @@ tokens:
 	assert.Equal(t, "daemon", configs[0].Daemon.Mode)
 	assert.Equal(t, "30m", configs[0].Daemon.CheckInterval)
 	assert.Equal(t, 10, configs[0].Rotation.ThresholdPercent)
-	assert.Equal(t, "https://api.linode.com", configs[0].Account.APIURL)
+	assert.Equal(t, "", configs[0].Account.APIURL)
 }
 
 func TestLoadAndValidateGlobalsOnlyPlusAccounts(t *testing.T) {

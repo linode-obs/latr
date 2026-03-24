@@ -130,8 +130,6 @@ config:
   rotation:
     # Rotate when this percentage of validity remains (e.g., 10 = rotate at 10% remaining)
     thresholdPercent: 10
-    # Whether to prune (delete) expired tokens from Linode
-    pruneExpired: false
 
   # Global Vault configuration (defaults — can be overridden per-account via account.vault)
   vault:

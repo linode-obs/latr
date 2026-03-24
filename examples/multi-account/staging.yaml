@@ -15,9 +15,6 @@ account:
 rotation:
   threshold_percent: 20  # Rotate earlier in staging
 
-observability:
-  log_level: "debug"  # More verbose logging in staging
-
 tokens:
   - label: "staging-api-token"
     team: "platform-team"

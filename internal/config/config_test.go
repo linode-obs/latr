@@ -102,7 +102,7 @@ tokens:
 	assert.Equal(t, 10, cfg.Rotation.ThresholdPercent)
 	assert.Equal(t, "secret", cfg.Vault.MountPath)
 	assert.Equal(t, "info", cfg.Observability.LogLevel)
-	assert.Equal(t, "https://api.linode.com", cfg.Account.APIURL)
+	assert.Equal(t, "", cfg.Account.APIURL)
 }
 
 func TestParseConfigWithAccountToken_StorageOnly(t *testing.T) {

@@ -35,7 +35,6 @@ data:
 
     rotation:
       threshold_percent: {{ .Values.config.rotation.thresholdPercent }}
-      prune_expired: {{ .Values.config.rotation.pruneExpired }}
 
     vault:
       address: {{ .Values.config.vault.address | quote }}
