@@ -378,9 +378,12 @@ tokens:
         path: "p"
 `
 
-	os.WriteFile(filepath.Join(tmpDir, "a-globals1.yaml"), []byte(globals1), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "b-globals2.yaml"), []byte(globals2), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "c-account.yaml"), []byte(account), 0644)
+	err := os.WriteFile(filepath.Join(tmpDir, "a-globals1.yaml"), []byte(globals1), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tmpDir, "b-globals2.yaml"), []byte(globals2), 0644)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(tmpDir, "c-account.yaml"), []byte(account), 0644)
+	require.NoError(t, err)
 
 	pattern := filepath.Join(tmpDir, "*.yaml")
 	configs, err := LoadAndValidate(pattern)

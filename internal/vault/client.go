@@ -86,21 +86,57 @@ func (c *Client) WriteToken(ctx context.Context, path, key, token string) error 
 
 	_, err := c.client.Logical().JSONMergePatch(ctx, fullPath, data)
 	if err != nil {
-		// PATCH fails with 404/405 if the secret doesn't exist yet or the
-		// method isn't supported. Only fall back to a full write for those
-		// cases — other errors (permissions, network) should surface.
 		var respErr *api.ResponseError
-		if errors.As(err, &respErr) && (respErr.StatusCode == http.StatusNotFound || respErr.StatusCode == http.StatusMethodNotAllowed) {
+		if !errors.As(err, &respErr) {
+			return fmt.Errorf("failed to patch token in vault: %w", err)
+		}
+
+		switch respErr.StatusCode {
+		case http.StatusNotFound:
+			// Secret doesn't exist yet — safe to do a full write
 			_, err = c.client.Logical().WriteWithContext(ctx, fullPath, data)
 			if err != nil {
 				return fmt.Errorf("failed to write token to vault: %w", err)
 			}
-		} else {
+		case http.StatusMethodNotAllowed:
+			// PATCH not supported — read existing data, merge, then write
+			// to preserve sibling keys
+			merged, readErr := c.readMergeData(ctx, fullPath, key, token)
+			if readErr != nil {
+				return fmt.Errorf("failed to read existing secret for merge: %w", readErr)
+			}
+			_, err = c.client.Logical().WriteWithContext(ctx, fullPath, merged)
+			if err != nil {
+				return fmt.Errorf("failed to write merged token to vault: %w", err)
+			}
+		default:
 			return fmt.Errorf("failed to patch token in vault: %w", err)
 		}
 	}
 
 	return nil
+}
+
+// readMergeData reads the existing secret at fullPath, merges the given key/value
+// into its data map, and returns the merged payload ready for a full write.
+func (c *Client) readMergeData(ctx context.Context, fullPath, key, token string) (map[string]interface{}, error) {
+	existing, err := c.client.Logical().ReadWithContext(ctx, fullPath)
+	if err != nil {
+		return nil, err
+	}
+
+	merged := map[string]interface{}{key: token}
+	if existing != nil && existing.Data != nil {
+		if existingData, ok := existing.Data["data"].(map[string]interface{}); ok {
+			for k, v := range existingData {
+				if k != key {
+					merged[k] = v
+				}
+			}
+		}
+	}
+
+	return map[string]interface{}{"data": merged}, nil
 }
 
 // ReadToken reads a token value from a KV v2 path
