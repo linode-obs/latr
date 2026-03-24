@@ -98,7 +98,8 @@ config:
       # mountPath: ""
     # Linode API URL (optional, defaults to https://api.linode.com)
     apiUrl: ""
-    # Account token configuration (optional).
+    # Account token configuration (optional) — passed directly via toYaml,
+    # so field names must use snake_case to match the Go YAML tags.
     # If storage is set, the Linode API token is read from storage at startup
     # (key derived from account.label). Falls back to LINODE_TOKEN env var.
     # If label/validity/scopes are also set, latr manages (rotates) this token.
@@ -116,6 +117,7 @@ config:
     #     label: "latr-main"
     #     validity: "180d"
     #     scopes: "*"
+    #     rotation_threshold: 10
 
   # Daemon settings
   daemon:
@@ -145,18 +147,20 @@ config:
     # Log level: debug, info, warn, error
     logLevel: "info"
 
-  # Token definitions
-  # At least one token must be defined
+  # Token definitions — passed directly to the latr config file via toYaml,
+  # so field names must use snake_case to match the Go YAML tags.
+  # At least one token must be defined.
   tokens: []
   # Example token configuration:
   # - label: my-api-token
   #   team: platform-team
   #   validity: 90d
   #   scopes: "*"
-  #   rotationThreshold: 10
+  #   rotation_threshold: 10
   #   storage:
   #     - type: vault
   #       path: linode/tokens/my-api-token
+  #       key: ""  # Optional: key name within the Vault secret (default: "token")
 
 # Secrets configuration
 # These values should be provided via a separate values file or via --set flags

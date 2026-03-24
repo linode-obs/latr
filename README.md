@@ -7,7 +7,7 @@ A Go application for automatically managing and rotating Linode API tokens with 
 - **Automatic Token Rotation**: Automatically rotates tokens based on configurable thresholds (default: 10% validity remaining)
 - **Secure Storage**: Stores rotated tokens in HashiCorp Vault (KV v2)
 - **State Tracking**: Tracks token rotation history and state via Vault metadata
-- **Graceful Token Management**: Keeps old tokens until expiration (configurable pruning)
+- **Graceful Token Management**: Keeps old tokens until the Linode API auto-expires them
 - **Multi-Account Support**: Manage tokens across multiple Linode accounts with separate API credentials
 - **Account Token Management**: Optionally rotate the account's own API token
 - **Multiple Tokens**: Manage multiple API tokens with different configurations
@@ -129,11 +129,14 @@ in order: account config → global config → environment variable.
 | Credential | Account config | Global config | Env var |
 |---|---|---|---|
 | Linode API token | `account.token.storage` | — | `LINODE_TOKEN` |
+| Linode API URL | `account.api_url` | — | `LINODE_API_URL` |
 | Vault role ID | `account.vault.role_id` | `vault.role_id` | `VAULT_ROLE_ID` |
 | Vault secret ID | `account.vault.secret_id` | `vault.secret_id` | `VAULT_SECRET_ID` |
 
-If no source provides a value, latr exits with an error identifying which
-credential is missing and for which account.
+If no source provides a required value (Linode token, Vault role/secret ID),
+latr exits with an error identifying which credential is missing and for
+which account. The Linode API URL defaults to `https://api.linode.com` if
+not set anywhere.
 
 ### Single-File Configuration
 
@@ -174,6 +177,7 @@ tokens:
     storage:
       - type: "vault"
         path: "linode/tokens/my-api-token"
+        # key: "token"  # Optional: key name within the Vault secret (default: "token")
 
   - label: "backup-token"
     team: "sre-team"
@@ -184,6 +188,13 @@ tokens:
       - type: "vault"
         path: "linode/tokens/backup"
 ```
+
+Storage entries support an optional `key` field that specifies the key name
+within the Vault KV v2 secret. It defaults to `"token"` if not set. The
+`account.token` storage uses `account.label` as the key automatically, which
+allows multiple accounts to share a single Vault path with separate keys.
+When a non-default key is used, token state metadata is tracked at a derived
+path to avoid collisions.
 
 ### Multi-File Configuration
 

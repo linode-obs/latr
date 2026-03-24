@@ -199,7 +199,12 @@ The following table lists the configurable parameters of the latr chart and thei
 | `config.vault.mountPath` | Global Vault KV v2 mount path | `secret` |
 | `config.observability.otelEndpoint` | OpenTelemetry endpoint | `""` |
 | `config.observability.logLevel` | Log level | `info` |
-| `config.tokens` | Token configurations (list) | `[]` |
+| `config.tokens` | Token configurations (list, uses snake_case — see below) | `[]` |
+
+> **Note:** `config.tokens` and `config.account.token` are rendered into the
+> latr config file via `toYaml`, so their fields must use **snake_case** to
+> match the application's YAML tags (e.g., `rotation_threshold`, not
+> `rotationThreshold`).
 
 ### Secrets Parameters
 
@@ -281,7 +286,7 @@ config:
       team: "platform"
       validity: "90d"
       scopes: "*"
-      rotationThreshold: 10
+      rotation_threshold: 10
       storage:
         - type: "vault"
           path: "linode/tokens/prod-full"
@@ -290,7 +295,7 @@ config:
       team: "development"
       validity: "30d"
       scopes: "linodes:read_only,images:read_only"
-      rotationThreshold: 20
+      rotation_threshold: 20
       storage:
         - type: "vault"
           path: "linode/tokens/dev-limited"

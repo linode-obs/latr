@@ -66,6 +66,7 @@ tokens:
     storage:
       - type: "vault"
         path: "linode/tokens/my-api-token"
+        # key: "token"  # Optional: key name within the Vault secret (default: "token")
 
   - label: "backup-token"
     team: "sre-team"
