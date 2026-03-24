@@ -67,33 +67,30 @@ func TestNewClient_AuthFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to authenticate")
 }
 
-func TestWriteToken(t *testing.T) {
-	writeCount := 0
+func TestWriteToken_PATCHSuccess(t *testing.T) {
+	var lastMethod string
 	var lastWrittenData map[string]interface{}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/auth/approle/login" {
 			w.WriteHeader(http.StatusOK)
-			response := map[string]interface{}{
+			json.NewEncoder(w).Encode(map[string]interface{}{
 				"auth": map[string]interface{}{
 					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
-			}
-			json.NewEncoder(w).Encode(response)
+			})
 			return
 		}
 
-		if r.URL.Path == "/v1/secret/data/test/path" && (r.Method == "POST" || r.Method == "PUT") {
-			writeCount++
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			lastMethod = r.Method
 			var payload map[string]interface{}
 			json.NewDecoder(r.Body).Decode(&payload)
 			lastWrittenData = payload
 			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": map[string]interface{}{
-					"version": 1,
-				},
+				"data": map[string]interface{}{"version": 1},
 			})
 			return
 		}
@@ -102,27 +99,65 @@ func TestWriteToken(t *testing.T) {
 	}))
 	defer server.Close()
 
-	config := &Config{
-		Address:   server.URL,
-		RoleID:    "test-role-id",
-		SecretID:  "test-secret-id",
-		MountPath: "secret",
-	}
-
-	client, err := NewClient(config)
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
 	require.NoError(t, err)
 
-	ctx := context.Background()
-	err = client.WriteToken(ctx, "test/path", "", "my-secret-token")
+	err = client.WriteToken(context.Background(), "test/path", "", "my-secret-token")
 	require.NoError(t, err)
 
-	assert.Equal(t, 1, writeCount)
-	assert.NotNil(t, lastWrittenData)
-
-	// Verify the data structure
+	assert.Equal(t, "PATCH", lastMethod, "WriteToken should use PATCH when it succeeds")
 	data, ok := lastWrittenData["data"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "my-secret-token", data["token"])
+}
+
+func TestWriteToken_FallbackOn404(t *testing.T) {
+	var methods []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			})
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			methods = append(methods, r.Method)
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusNotFound)
+				json.NewEncoder(w).Encode(map[string]interface{}{"errors": []string{"no data at path"}})
+				return
+			}
+			// POST/PUT fallback succeeds
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"version": 1},
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
+	require.NoError(t, err)
+
+	err = client.WriteToken(context.Background(), "test/path", "custom-key", "my-token")
+	require.NoError(t, err)
+
+	require.Len(t, methods, 2)
+	assert.Equal(t, "PATCH", methods[0], "should try PATCH first")
+	assert.Equal(t, "PUT", methods[1], "should fall back to full write on 404")
 }
 
 func TestReadSecretKey_Success(t *testing.T) {

@@ -183,11 +183,16 @@ func main() {
 		if cfg.Account.Token != nil && cfg.Account.Token.HasStorage() {
 			for _, s := range cfg.Account.Token.Storage {
 				if s.Type == "vault" {
+					vaultKey := acctLabel
+					if s.Key != "" {
+						vaultKey = s.Key
+					}
 					logger.InfoContext(ctx, "Reading Linode token from Vault",
 						slog.String("account_label", acctLabel),
-						slog.String("vault_path", s.Path))
+						slog.String("vault_path", s.Path),
+						slog.String("vault_key", vaultKey))
 
-					linodeToken, err = vaultClient.ReadSecretKey(ctx, s.Path, acctLabel)
+					linodeToken, err = vaultClient.ReadSecretKey(ctx, s.Path, vaultKey)
 					if err != nil {
 						logger.ErrorContext(ctx, "Failed to read Linode token from Vault",
 							slog.String("account_label", acctLabel),

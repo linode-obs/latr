@@ -5,6 +5,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -315,6 +316,9 @@ func validateToken(token *TokenConfig, prefix string) error {
 		}
 		if s.Path == "" {
 			return fmt.Errorf("%s: storage[%d]: path is required", prefix, i)
+		}
+		if s.Key != "" && (strings.Contains(s.Key, "/") || strings.Contains(s.Key, "..")) {
+			return fmt.Errorf("%s: storage[%d]: key must not contain '/' or '..' (got %q)", prefix, i, s.Key)
 		}
 	}
 

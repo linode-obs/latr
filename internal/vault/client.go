@@ -127,11 +127,13 @@ func (c *Client) readMergeData(ctx context.Context, fullPath, key, token string)
 
 	merged := map[string]interface{}{key: token}
 	if existing != nil && existing.Data != nil {
-		if existingData, ok := existing.Data["data"].(map[string]interface{}); ok {
-			for k, v := range existingData {
-				if k != key {
-					merged[k] = v
-				}
+		existingData, ok := existing.Data["data"].(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("invalid existing data structure at path: %s", fullPath)
+		}
+		for k, v := range existingData {
+			if k != key {
+				merged[k] = v
 			}
 		}
 	}
