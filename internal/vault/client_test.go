@@ -23,7 +23,7 @@ func TestNewClient_AppRoleAuth(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -76,7 +76,7 @@ func TestWriteToken(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -131,7 +131,7 @@ func TestReadToken(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -181,7 +181,7 @@ func TestReadToken_NotFound(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -318,7 +318,7 @@ func TestWriteTokenState(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -349,13 +349,13 @@ func TestWriteTokenState(t *testing.T) {
 	require.NoError(t, err)
 
 	state := &models.TokenState{
-		Label:              "test-token",
-		CurrentLinodeID:    123,
-		CurrentTokenValue:  "secret-value",
-		LastRotatedAt:      time.Now(),
-		PreviousLinodeID:   100,
-		PreviousExpiresAt:  time.Now().Add(60 * 24 * time.Hour),
-		RotationCount:      5,
+		Label:             "test-token",
+		CurrentLinodeID:   123,
+		CurrentTokenValue: "secret-value",
+		LastRotatedAt:     time.Now(),
+		PreviousLinodeID:  100,
+		PreviousExpiresAt: time.Now().Add(60 * 24 * time.Hour),
+		RotationCount:     5,
 	}
 
 	ctx := context.Background()
@@ -377,7 +377,7 @@ func TestReadTokenState(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}
@@ -390,12 +390,12 @@ func TestReadTokenState(t *testing.T) {
 			response := map[string]interface{}{
 				"data": map[string]interface{}{
 					"custom_metadata": map[string]interface{}{
-						"label":                "test-token",
-						"current_linode_id":    "123",
-						"last_rotated_at":      now.Format(time.RFC3339),
-						"previous_linode_id":   "100",
-						"previous_expires_at":  now.Add(60 * 24 * time.Hour).Format(time.RFC3339),
-						"rotation_count":       "5",
+						"label":               "test-token",
+						"current_linode_id":   "123",
+						"last_rotated_at":     now.Format(time.RFC3339),
+						"previous_linode_id":  "100",
+						"previous_expires_at": now.Add(60 * 24 * time.Hour).Format(time.RFC3339),
+						"rotation_count":      "5",
 					},
 				},
 			}
@@ -434,7 +434,7 @@ func TestReadTokenState_NotFound(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			response := map[string]interface{}{
 				"auth": map[string]interface{}{
-					"client_token": "test-token",
+					"client_token":   "test-token",
 					"lease_duration": 3600,
 				},
 			}

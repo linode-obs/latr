@@ -414,7 +414,7 @@ func TestValidateConfig_InvalidAccountTokenValidity(t *testing.T) {
 			Vault: AccountVaultConfig{RoleID: "r", SecretID: "s"},
 			Token: &AccountTokenConfig{
 				Storage: []StorageConfig{{Type: "vault", Path: "p"}},
-				Label: "latr-main", Validity: "7mo", Scopes: "*",
+				Label:   "latr-main", Validity: "7mo", Scopes: "*",
 			},
 		},
 		Vault: VaultConfig{Address: "https://vault.example.com"},
