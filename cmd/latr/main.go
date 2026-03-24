@@ -66,18 +66,13 @@ func main() {
 		primaryCfg = configs[0]
 	}
 
-	// Daemon and observability settings are global-only — enforce by overwriting on all non-global configs
+	// Daemon and observability settings are global-only — enforce by overwriting
+	// on all non-primary configs. We don't warn here because ApplyDefaults()
+	// populates these fields before we can distinguish "explicitly set" from
+	// "defaulted", which would cause misleading warnings.
 	for _, cfg := range configs {
 		if cfg != primaryCfg {
-			if cfg.Daemon != primaryCfg.Daemon {
-				logger.Warn("Per-account daemon settings are ignored; using global/primary values",
-					slog.String("account_label", cfg.Account.Label))
-			}
 			cfg.Daemon = primaryCfg.Daemon
-			if cfg.Observability != primaryCfg.Observability {
-				logger.Warn("Per-account observability settings are ignored; using global/primary values",
-					slog.String("account_label", cfg.Account.Label))
-			}
 			cfg.Observability = primaryCfg.Observability
 		}
 	}
@@ -203,10 +198,6 @@ func run(primaryCfg *config.Config, configs []*config.Config) error {
 					break
 				}
 			}
-		}
-		if linodeToken == "" && cfg.Account.Token != nil && cfg.Account.Token.HasStorage() {
-			logger.WarnContext(ctx, "account.token.storage is configured but no supported storage type was found; falling back to LINODE_TOKEN env var",
-				slog.String("account_label", acctLabel))
 		}
 		if linodeToken == "" {
 			linodeToken = os.Getenv("LINODE_TOKEN")

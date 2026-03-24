@@ -56,9 +56,28 @@ func LoadAll(pathOrPattern string) ([]*Config, error) {
 // (or the first file if none is marked) provides default settings that are
 // propagated to other configs.
 func LoadAndValidate(pathOrPattern string) ([]*Config, error) {
-	configs, err := LoadAll(pathOrPattern)
-	if err != nil {
-		return nil, err
+	// Resolve paths so we can include filenames in error messages
+	var paths []string
+	if containsGlobChar(pathOrPattern) {
+		matches, err := filepath.Glob(pathOrPattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to glob pattern %s: %w", pathOrPattern, err)
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("no config files found matching pattern: %s", pathOrPattern)
+		}
+		paths = matches
+	} else {
+		paths = []string{pathOrPattern}
+	}
+
+	configs := make([]*Config, 0, len(paths))
+	for _, path := range paths {
+		cfg, err := Load(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load config file %s: %w", path, err)
+		}
+		configs = append(configs, cfg)
 	}
 
 	// Find the global config (if any) and use it as the source for defaults.
@@ -89,7 +108,7 @@ func LoadAndValidate(pathOrPattern string) ([]*Config, error) {
 	for i, cfg := range configs {
 		if err := cfg.Validate(); err != nil {
 			if len(configs) > 1 {
-				return nil, fmt.Errorf("config file %d: %w", i+1, err)
+				return nil, fmt.Errorf("config file %s: %w", paths[i], err)
 			}
 			return nil, fmt.Errorf("config validation failed: %w", err)
 		}
