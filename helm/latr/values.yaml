@@ -79,7 +79,6 @@ podDisruptionBudget:
 # latr application configuration
 config:
   # Configuration for a single-account deployment via this Helm chart.
-  # Note: globals-only configs (without an account section) are not supported here.
   # For multi-account setups, use Kustomize overlays with separate config files.
 
   # Account configuration (required for this chart)

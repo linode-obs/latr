@@ -353,6 +353,46 @@ vault:
 	assert.Contains(t, err.Error(), "at least one config file must have an account block")
 }
 
+func TestLoadAndValidateGlobalWithAccount(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	combined := `
+global: true
+
+account:
+  label: "lcid-1234"
+  team: "platform-team"
+
+daemon:
+  mode: "one-shot"
+
+vault:
+  address: "https://vault.example.com"
+
+tokens:
+  - label: "my-token"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "tokens/my-token"
+`
+
+	err := os.WriteFile(filepath.Join(tmpDir, "config.yaml"), []byte(combined), 0644)
+	require.NoError(t, err)
+
+	pattern := filepath.Join(tmpDir, "*.yaml")
+	configs, err := LoadAndValidate(pattern)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+
+	cfg := configs[0]
+	assert.True(t, cfg.IsGlobal())
+	assert.Equal(t, "lcid-1234", cfg.Account.Label)
+	assert.Len(t, cfg.Tokens, 1)
+	assert.Equal(t, "one-shot", cfg.Daemon.Mode)
+}
+
 func TestLoadAndValidateMultipleGlobals_Fails(t *testing.T) {
 	tmpDir := t.TempDir()
 

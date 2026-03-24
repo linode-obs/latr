@@ -202,7 +202,9 @@ For multiple accounts, use a global config for shared defaults and separate
 files per account. The global config is identified by `global: true` — file
 order doesn't matter. Only one global config is allowed.
 
-**Global config** (`global: true`) — shared defaults, no `account` or `tokens` needed:
+**Global config** (`global: true`) — shared defaults. Can optionally include
+`account` and `tokens` if it also serves as an account config (useful for
+single-file setups that need `global: true`):
 
 ```yaml
 global: true

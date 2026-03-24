@@ -144,7 +144,7 @@ func run(primaryCfg *config.Config, configs []*config.Config) error {
 	accounts := make([]scheduler.AccountEntry, 0, len(configs))
 	for _, cfg := range configs {
 		// Skip globals-only configs (no account, just defaults)
-		if cfg.IsGlobal() {
+		if cfg.Account.Label == "" {
 			continue
 		}
 

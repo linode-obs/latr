@@ -98,7 +98,7 @@ func LoadAndValidate(pathOrPattern string) ([]*Config, error) {
 	// Validate account label uniqueness and ensure at least one account exists
 	seenLabels := make(map[string]int)
 	for i, cfg := range configs {
-		if cfg.IsGlobal() || cfg.Account.Label == "" {
+		if cfg.Account.Label == "" {
 			continue
 		}
 		if prev, exists := seenLabels[cfg.Account.Label]; exists {

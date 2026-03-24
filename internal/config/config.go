@@ -14,8 +14,9 @@ import (
 // Config represents the complete configuration for the token rotator
 type Config struct {
 	// Global marks this config as the global defaults file. When set to true,
-	// account and tokens are not required — the file only provides default
-	// settings (daemon, vault, rotation, observability) for other configs.
+	// this config's daemon, vault, rotation, and observability settings serve
+	// as defaults for other configs. Account and tokens are optional — if
+	// present, this config is also processed as an account.
 	Global        bool                `yaml:"global"`
 	Account       AccountConfig       `yaml:"account"`
 	Daemon        DaemonConfig        `yaml:"daemon"`
@@ -26,8 +27,8 @@ type Config struct {
 }
 
 // AccountConfig represents the Linode account used by this configuration file.
-// For non-global configs, exactly one account block is required.
-// Global configs (global: true) do not require an account block.
+// An account block with a label is required unless the config is global-only
+// (global: true with no account or tokens).
 type AccountConfig struct {
 	// Label identifies this account (e.g., "lcid-1234").
 	// Also used as the key when reading/writing the token via storage.
@@ -201,21 +202,15 @@ func (c *Config) ApplyDefaults() {
 
 // IsGlobal returns true if this config is marked as the global defaults file
 // via `global: true`. Global configs provide default settings for other configs
-// and do not require account or tokens.
+// and may optionally include account and tokens.
 func (c *Config) IsGlobal() bool {
 	return c.Global
 }
 
 // Validate checks that the configuration is valid.
 func (c *Config) Validate() error {
-	if c.Global {
-		// Global config only provides defaults. It must not set account or
-		// tokens, because cmd/latr skips global configs entirely and any such
-		// settings would be silently ignored.
-		emptyAccount := AccountConfig{}
-		if c.Account != emptyAccount || len(c.Tokens) > 0 {
-			return fmt.Errorf("global config must not set account or tokens; move these settings to a non-global config file")
-		}
+	if c.Global && c.Account.Label == "" && len(c.Tokens) == 0 {
+		// Global-only config (no account or tokens) — just provides defaults.
 		return nil
 	}
 
