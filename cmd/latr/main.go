@@ -238,7 +238,7 @@ func main() {
 	}
 
 	// Create scheduler
-	sched := scheduler.NewScheduler(primaryCfg.Daemon, primaryCfg.Rotation, accounts)
+	sched := scheduler.NewScheduler(primaryCfg.Daemon, accounts)
 	defer cancel()
 
 	sigChan := make(chan os.Signal, 1)

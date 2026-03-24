@@ -211,7 +211,8 @@ func (c *Config) Validate() error {
 		// Global config only provides defaults. It must not set account or
 		// tokens, because cmd/latr skips global configs entirely and any such
 		// settings would be silently ignored.
-		if c.Account.Label != "" || c.Account.Token != nil || len(c.Tokens) > 0 {
+		emptyAccount := AccountConfig{}
+		if c.Account != emptyAccount || len(c.Tokens) > 0 {
 			return fmt.Errorf("global config must not set account or tokens; move these settings to a non-global config file")
 		}
 		return nil
@@ -299,6 +300,14 @@ func validateToken(token *TokenConfig, prefix string) error {
 	}
 	if len(token.Storage) == 0 {
 		return fmt.Errorf("%s: at least one storage backend is required", prefix)
+	}
+	for i, s := range token.Storage {
+		if s.Type == "" {
+			return fmt.Errorf("%s: storage[%d]: type is required", prefix, i)
+		}
+		if s.Path == "" {
+			return fmt.Errorf("%s: storage[%d]: path is required", prefix, i)
+		}
 	}
 
 	// Validate validity period

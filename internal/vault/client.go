@@ -2,7 +2,9 @@ package vault
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -84,10 +86,17 @@ func (c *Client) WriteToken(ctx context.Context, path, key, token string) error 
 
 	_, err := c.client.Logical().JSONMergePatch(ctx, fullPath, data)
 	if err != nil {
-		// PATCH fails if the secret doesn't exist yet; fall back to a full write
-		_, err = c.client.Logical().WriteWithContext(ctx, fullPath, data)
-		if err != nil {
-			return fmt.Errorf("failed to write token to vault: %w", err)
+		// PATCH fails with 404/405 if the secret doesn't exist yet or the
+		// method isn't supported. Only fall back to a full write for those
+		// cases — other errors (permissions, network) should surface.
+		var respErr *api.ResponseError
+		if errors.As(err, &respErr) && (respErr.StatusCode == http.StatusNotFound || respErr.StatusCode == http.StatusMethodNotAllowed) {
+			_, err = c.client.Logical().WriteWithContext(ctx, fullPath, data)
+			if err != nil {
+				return fmt.Errorf("failed to write token to vault: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to patch token in vault: %w", err)
 		}
 	}
 

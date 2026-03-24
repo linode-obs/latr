@@ -43,7 +43,6 @@ func TestScheduler_RunOnce(t *testing.T) {
 
 	sched := NewScheduler(
 		config.DaemonConfig{Mode: "one-shot"},
-		config.RotationConfig{ThresholdPercent: 10},
 		accounts,
 	)
 
@@ -85,7 +84,6 @@ func TestScheduler_RunOnce_MultipleAccounts(t *testing.T) {
 
 	sched := NewScheduler(
 		config.DaemonConfig{Mode: "one-shot"},
-		config.RotationConfig{ThresholdPercent: 10},
 		accounts,
 	)
 
@@ -118,7 +116,6 @@ func TestScheduler_RunDaemon(t *testing.T) {
 
 	sched := NewScheduler(
 		config.DaemonConfig{Mode: "daemon", CheckInterval: "100ms"},
-		config.RotationConfig{ThresholdPercent: 10},
 		accounts,
 	)
 
@@ -161,7 +158,6 @@ func TestScheduler_RunDaemon_GracefulShutdown(t *testing.T) {
 
 	sched := NewScheduler(
 		config.DaemonConfig{Mode: "daemon", CheckInterval: "1s"},
-		config.RotationConfig{ThresholdPercent: 10},
 		accounts,
 	)
 
@@ -209,7 +205,6 @@ func TestScheduler_TokenRotationThresholdOverride(t *testing.T) {
 
 	sched := NewScheduler(
 		config.DaemonConfig{Mode: "one-shot"},
-		config.RotationConfig{ThresholdPercent: 10},
 		accounts,
 	)
 
@@ -233,7 +228,6 @@ func TestScheduler_NoTokensConfigured(t *testing.T) {
 
 	sched := NewScheduler(
 		config.DaemonConfig{Mode: "one-shot"},
-		config.RotationConfig{ThresholdPercent: 10},
 		accounts,
 	)
 

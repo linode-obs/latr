@@ -28,15 +28,13 @@ type AccountEntry struct {
 // Scheduler manages the execution schedule for token rotation
 type Scheduler struct {
 	daemon   config.DaemonConfig
-	rotation config.RotationConfig
 	accounts []AccountEntry
 }
 
 // NewScheduler creates a new scheduler
-func NewScheduler(daemon config.DaemonConfig, rotation config.RotationConfig, accounts []AccountEntry) *Scheduler {
+func NewScheduler(daemon config.DaemonConfig, accounts []AccountEntry) *Scheduler {
 	return &Scheduler{
 		daemon:   daemon,
-		rotation: rotation,
 		accounts: accounts,
 	}
 }
