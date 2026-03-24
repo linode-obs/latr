@@ -64,7 +64,7 @@ func (c *Client) CreateToken(ctx context.Context, label, scopes string, expiry t
 		CreatedAt: created,
 		ExpiresAt: tokenExpiry,
 		Scopes:    token.Scopes,
-		Validity:  time.Until(tokenExpiry),
+		Validity:  tokenExpiry.Sub(created),
 	}, nil
 }
 
@@ -110,4 +110,3 @@ func (c *Client) FindTokenByLabel(ctx context.Context, label string) ([]*models.
 
 	return result, nil
 }
-

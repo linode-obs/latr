@@ -12,4 +12,3 @@ func TestNewClient(t *testing.T) {
 	require.NotNil(t, client)
 	assert.Equal(t, "test-token", client.token)
 }
-

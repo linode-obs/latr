@@ -155,9 +155,18 @@ func (s *Scheduler) executeCycle(ctx context.Context) error {
 		}
 	}
 
+	span.SetAttributes(attribute.Int("tokens.failures", failures))
+
 	if failures > 0 && int64(failures) == totalTokens {
 		span.SetStatus(codes.Error, "all tokens failed")
 		return fmt.Errorf("rotation cycle failed: all %d tokens encountered errors", failures)
+	}
+
+	if failures > 0 {
+		logger.WarnContext(ctx, "Rotation cycle completed with failures",
+			append([]any{slog.Int("failures", failures)}, observability.TraceAttrs(ctx)...)...)
+		span.SetStatus(codes.Error, "rotation cycle completed with failures")
+		return nil
 	}
 
 	logger.InfoContext(ctx, "Rotation cycle completed", observability.TraceAttrs(ctx)...)

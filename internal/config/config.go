@@ -223,6 +223,9 @@ func (c *Config) Validate() error {
 	if c.Account.Label == "" {
 		return fmt.Errorf("account label is required")
 	}
+	if strings.Contains(c.Account.Label, "/") || strings.Contains(c.Account.Label, "..") {
+		return fmt.Errorf("account label must not contain '/' or '..' (got %q)", c.Account.Label)
+	}
 
 	// Validate Vault address is set somewhere (globally or per-account)
 	resolvedVault := c.Account.Vault.Resolved(c.Vault)
