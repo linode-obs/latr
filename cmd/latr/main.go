@@ -66,6 +66,18 @@ func main() {
 		primaryCfg = configs[0]
 	}
 
+	// Warn if any non-global config tries to set daemon settings
+	for _, cfg := range configs {
+		if cfg.IsGlobal() || cfg == primaryCfg {
+			continue
+		}
+		if cfg.Daemon.Mode != "" && cfg.Daemon.Mode != primaryCfg.Daemon.Mode ||
+			cfg.Daemon.CheckInterval != "" && cfg.Daemon.CheckInterval != primaryCfg.Daemon.CheckInterval {
+			logger.Warn("Per-account daemon settings are ignored; daemon configuration is global-only",
+				slog.String("account_label", cfg.Account.Label))
+		}
+	}
+
 	// Log each loaded configuration
 	var totalTokens int
 	for i, cfg := range configs {
@@ -79,8 +91,14 @@ func main() {
 
 	// Log summary if multiple configs
 	if len(configs) > 1 {
+		accountCount := 0
+		for _, cfg := range configs {
+			if !cfg.IsGlobal() {
+				accountCount++
+			}
+		}
 		logger.Info("All configurations loaded",
-			slog.Int("account_count", len(configs)),
+			slog.Int("account_count", accountCount),
 			slog.Int("total_token_count", totalTokens),
 			slog.String("mode", primaryCfg.Daemon.Mode),
 			slog.Int("rotation_threshold_percent", primaryCfg.Rotation.ThresholdPercent),
@@ -191,7 +209,7 @@ func main() {
 		}
 
 		linodeClient := linode.NewClient(linodeToken, cfg.Account.APIURL)
-		engine := rotation.NewEngine(linodeClient, vaultClient, cfg.Daemon.DryRun)
+		engine := rotation.NewEngine(linodeClient, vaultClient, primaryCfg.Daemon.DryRun)
 
 		tokens := cfg.AllTokens()
 

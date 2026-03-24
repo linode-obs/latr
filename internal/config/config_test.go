@@ -52,7 +52,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -116,7 +116,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
 
 vault:
   address: "https://vault.example.com"
@@ -127,7 +127,7 @@ tokens:
     scopes: "linodes:read_write"
     storage:
       - type: "vault"
-        path: "secret/data/linode/managed"
+        path: "linode/managed"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -155,7 +155,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
     label: "latr-main"
     validity: "180d"
     scopes: "*"
@@ -169,7 +169,7 @@ tokens:
     scopes: "linodes:read_write"
     storage:
       - type: "vault"
-        path: "secret/data/linode/managed"
+        path: "linode/managed"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -198,7 +198,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
     label: "latr-main"
     validity: "180d"
     scopes: "*"
@@ -578,7 +578,7 @@ tokens:
     rotation_threshold: 15
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -614,7 +614,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))

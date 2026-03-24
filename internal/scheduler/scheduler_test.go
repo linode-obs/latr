@@ -221,11 +221,12 @@ func TestScheduler_TokenRotationThresholdOverride(t *testing.T) {
 }
 
 func TestScheduler_NoTokensConfigured(t *testing.T) {
+	mockEngine := new(MockEngine)
 	accounts := []AccountEntry{
 		{
 			Account:  config.AccountConfig{Label: "empty"},
 			Tokens:   []config.TokenConfig{},
-			Engine:   new(MockEngine),
+			Engine:   mockEngine,
 			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
@@ -239,4 +240,6 @@ func TestScheduler_NoTokensConfigured(t *testing.T) {
 	ctx := context.Background()
 	err := sched.Run(ctx)
 	require.NoError(t, err)
+
+	mockEngine.AssertNotCalled(t, "ProcessToken", mock.Anything, mock.Anything, mock.Anything)
 }

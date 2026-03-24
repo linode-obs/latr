@@ -52,9 +52,9 @@ func LoadAll(pathOrPattern string) ([]*Config, error) {
 }
 
 // LoadAndValidate loads configuration file(s), applies defaults, and validates.
-// Returns a slice of configs — one per file. Global settings (daemon, rotation,
-// vault, observability) from the first file are propagated to subsequent files
-// that don't specify them.
+// Returns a slice of configs — one per file. The config marked global: true
+// (or the first file if none is marked) provides default settings that are
+// propagated to other configs.
 func LoadAndValidate(pathOrPattern string) ([]*Config, error) {
 	configs, err := LoadAll(pathOrPattern)
 	if err != nil {
@@ -116,16 +116,8 @@ func LoadAndValidate(pathOrPattern string) ([]*Config, error) {
 // propagateGlobals copies global settings from the primary config to a
 // secondary config for any fields the secondary config doesn't set.
 func propagateGlobals(primary, secondary *Config) {
-	// Daemon
-	if secondary.Daemon.Mode == "" {
-		secondary.Daemon.Mode = primary.Daemon.Mode
-	}
-	if secondary.Daemon.CheckInterval == "" {
-		secondary.Daemon.CheckInterval = primary.Daemon.CheckInterval
-	}
-	if !secondary.Daemon.DryRun && primary.Daemon.DryRun {
-		secondary.Daemon.DryRun = primary.Daemon.DryRun
-	}
+	// Note: Daemon.DryRun is not propagated because a bool zero-value (false)
+	// is indistinguishable from "not set". Daemon settings are global-only.
 
 	// Rotation
 	if secondary.Rotation.ThresholdPercent == 0 {
