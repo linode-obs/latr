@@ -237,3 +237,64 @@ func TestScheduler_NoTokensConfigured(t *testing.T) {
 
 	mockEngine.AssertNotCalled(t, "ProcessToken", mock.Anything, mock.Anything, mock.Anything)
 }
+
+func TestScheduler_AllTokensFail_ReturnsError(t *testing.T) {
+	mockEngine := new(MockEngine)
+
+	tokens := []config.TokenConfig{
+		{Label: "token1", Validity: "90d", Scopes: "*", Storage: []config.StorageConfig{{Type: "vault", Path: "p1"}}},
+		{Label: "token2", Validity: "90d", Scopes: "*", Storage: []config.StorageConfig{{Type: "vault", Path: "p2"}}},
+	}
+
+	accounts := []AccountEntry{
+		{
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens,
+			Engine:   mockEngine,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
+		},
+	}
+
+	mockEngine.On("ProcessToken", mock.Anything, tokens[0], 10).Return(assert.AnError)
+	mockEngine.On("ProcessToken", mock.Anything, tokens[1], 10).Return(assert.AnError)
+
+	sched := NewScheduler(
+		config.DaemonConfig{Mode: "one-shot"},
+		accounts,
+	)
+
+	err := sched.Run(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "all 2 tokens encountered errors")
+	mockEngine.AssertExpectations(t)
+}
+
+func TestScheduler_PartialFailure_ReturnsNil(t *testing.T) {
+	mockEngine := new(MockEngine)
+
+	tokens := []config.TokenConfig{
+		{Label: "token1", Validity: "90d", Scopes: "*", Storage: []config.StorageConfig{{Type: "vault", Path: "p1"}}},
+		{Label: "token2", Validity: "90d", Scopes: "*", Storage: []config.StorageConfig{{Type: "vault", Path: "p2"}}},
+	}
+
+	accounts := []AccountEntry{
+		{
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens,
+			Engine:   mockEngine,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
+		},
+	}
+
+	mockEngine.On("ProcessToken", mock.Anything, tokens[0], 10).Return(assert.AnError)
+	mockEngine.On("ProcessToken", mock.Anything, tokens[1], 10).Return(nil)
+
+	sched := NewScheduler(
+		config.DaemonConfig{Mode: "one-shot"},
+		accounts,
+	)
+
+	err := sched.Run(context.Background())
+	require.NoError(t, err, "partial failure should not return an error")
+	mockEngine.AssertExpectations(t)
+}

@@ -52,7 +52,7 @@ func (c *Client) CreateToken(ctx context.Context, label, scopes string, expiry t
 	if token.Created != nil {
 		created = *token.Created
 	}
-	tokenExpiry := time.Now().Add(90 * 24 * time.Hour)
+	tokenExpiry := expiry
 	if token.Expiry != nil {
 		tokenExpiry = *token.Expiry
 	}

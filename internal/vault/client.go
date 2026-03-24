@@ -98,9 +98,9 @@ func (c *Client) WriteToken(ctx context.Context, path, key, token string) error 
 			if err != nil {
 				return fmt.Errorf("failed to write token to vault: %w", err)
 			}
-		case http.StatusMethodNotAllowed:
-			// PATCH not supported — read existing data, merge, then write
-			// to preserve sibling keys
+		case http.StatusForbidden, http.StatusMethodNotAllowed:
+			// PATCH not permitted (403) or not supported (405) — read
+			// existing data, merge, then write to preserve sibling keys
 			merged, readErr := c.readMergeData(ctx, fullPath, key, token)
 			if readErr != nil {
 				return fmt.Errorf("failed to read existing secret for merge: %w", readErr)

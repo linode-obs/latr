@@ -160,6 +160,135 @@ func TestWriteToken_FallbackOn404(t *testing.T) {
 	assert.Contains(t, []string{"PUT", "POST"}, methods[1], "should fall back to full write on 404 using PUT or POST")
 }
 
+func TestWriteToken_FallbackOn405_PreservesSiblingKeys(t *testing.T) {
+	var methods []string
+	var writtenPayload map[string]interface{}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			})
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			methods = append(methods, r.Method)
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusMethodNotAllowed)
+				json.NewEncoder(w).Encode(map[string]interface{}{"errors": []string{"method not allowed"}})
+				return
+			}
+			if r.Method == "GET" {
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]interface{}{
+					"data": map[string]interface{}{
+						"data":     map[string]interface{}{"sibling-key": "preserve-me", "old-key": "also-keep"},
+						"metadata": map[string]interface{}{"version": 1},
+					},
+				})
+				return
+			}
+			// PUT/POST write
+			json.NewDecoder(r.Body).Decode(&writtenPayload)
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"version": 2},
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
+	require.NoError(t, err)
+
+	err = client.WriteToken(context.Background(), "test/path", "custom-key", "new-token-value")
+	require.NoError(t, err)
+
+	require.Len(t, methods, 3, "should PATCH, GET, then PUT/POST")
+	assert.Equal(t, "PATCH", methods[0])
+	assert.Equal(t, "GET", methods[1])
+	assert.Contains(t, []string{"PUT", "POST"}, methods[2])
+
+	// Verify the written data contains both the new key and existing sibling keys
+	require.NotNil(t, writtenPayload)
+	dataMap, ok := writtenPayload["data"].(map[string]interface{})
+	require.True(t, ok, "payload should have data key")
+	assert.Equal(t, "new-token-value", dataMap["custom-key"], "should contain the new token")
+	assert.Equal(t, "preserve-me", dataMap["sibling-key"], "should preserve existing sibling key")
+	assert.Equal(t, "also-keep", dataMap["old-key"], "should preserve all existing keys")
+}
+
+func TestWriteToken_FallbackOn403(t *testing.T) {
+	var methods []string
+	existingData := map[string]interface{}{
+		"data": map[string]interface{}{
+			"data":     map[string]interface{}{"sibling-key": "preserve-me"},
+			"metadata": map[string]interface{}{"version": 1},
+		},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			})
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" {
+			methods = append(methods, r.Method)
+			if r.Method == "PATCH" {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(map[string]interface{}{"errors": []string{"permission denied"}})
+				return
+			}
+			if r.Method == "GET" {
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(existingData)
+				return
+			}
+			// PUT/POST write succeeds
+			var payload map[string]interface{}
+			json.NewDecoder(r.Body).Decode(&payload)
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"data": map[string]interface{}{"version": 2},
+			})
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	client, err := NewClient(&Config{
+		Address: server.URL, RoleID: "r", SecretID: "s", MountPath: "secret",
+	})
+	require.NoError(t, err)
+
+	err = client.WriteToken(context.Background(), "test/path", "custom-key", "my-token")
+	require.NoError(t, err)
+
+	require.Len(t, methods, 3, "should PATCH, then GET (read existing), then PUT/POST (write merged)")
+	assert.Equal(t, "PATCH", methods[0], "should try PATCH first")
+	assert.Equal(t, "GET", methods[1], "should read existing data for merge")
+	assert.Contains(t, []string{"PUT", "POST"}, methods[2], "should write merged data")
+}
+
 func TestReadSecretKey_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/v1/auth/approle/login" {
