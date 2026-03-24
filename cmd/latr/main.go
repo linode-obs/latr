@@ -66,16 +66,10 @@ func main() {
 		primaryCfg = configs[0]
 	}
 
-	// Warn if any non-global config tries to set daemon settings
+	// Daemon settings are global-only — enforce by overwriting on all non-global configs
 	for _, cfg := range configs {
-		if cfg.IsGlobal() || cfg == primaryCfg {
-			continue
-		}
-		if (cfg.Daemon.Mode != "" && cfg.Daemon.Mode != primaryCfg.Daemon.Mode) ||
-			(cfg.Daemon.CheckInterval != "" && cfg.Daemon.CheckInterval != primaryCfg.Daemon.CheckInterval) ||
-			(cfg.Daemon.DryRun != primaryCfg.Daemon.DryRun) {
-			logger.Warn("Per-account daemon settings are ignored; daemon configuration is global-only",
-				slog.String("account_label", cfg.Account.Label))
+		if cfg != primaryCfg {
+			cfg.Daemon = primaryCfg.Daemon
 		}
 	}
 

@@ -33,7 +33,8 @@ helm install latr ./helm/latr \
 ### Installation with Vault Token Source (Recommended)
 
 When using `account.token.storage`, the Linode API token is read from Vault at
-startup — no plaintext secrets in config or K8s Secrets.
+startup, so the Linode API token itself is not stored in plaintext in config or
+K8s Secrets. Vault AppRole credentials are still managed via K8s Secrets.
 
 Create a `custom-values.yaml` file:
 
