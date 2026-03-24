@@ -66,10 +66,19 @@ func main() {
 		primaryCfg = configs[0]
 	}
 
-	// Daemon settings are global-only — enforce by overwriting on all non-global configs
+	// Daemon and observability settings are global-only — enforce by overwriting on all non-global configs
 	for _, cfg := range configs {
 		if cfg != primaryCfg {
+			if cfg.Daemon != primaryCfg.Daemon {
+				logger.Warn("Per-account daemon settings are ignored; using global/primary values",
+					slog.String("account_label", cfg.Account.Label))
+			}
 			cfg.Daemon = primaryCfg.Daemon
+			if cfg.Observability != primaryCfg.Observability {
+				logger.Warn("Per-account observability settings are ignored; using global/primary values",
+					slog.String("account_label", cfg.Account.Label))
+			}
+			cfg.Observability = primaryCfg.Observability
 		}
 	}
 
@@ -203,7 +212,15 @@ func main() {
 			os.Exit(1)
 		}
 
-		linodeClient := linode.NewClient(linodeToken, cfg.Account.APIURL)
+		// Resolve Linode API URL: config value takes precedence, then env var fallback
+	linodeAPIURL := cfg.Account.APIURL
+	if linodeAPIURL == "" || linodeAPIURL == "https://api.linode.com" {
+		if envURL := os.Getenv("LINODE_API_URL"); envURL != "" {
+			linodeAPIURL = envURL
+		}
+	}
+
+	linodeClient := linode.NewClient(linodeToken, linodeAPIURL)
 		engine := rotation.NewEngine(linodeClient, vaultClient, primaryCfg.Daemon.DryRun)
 
 		tokens := cfg.AllTokens()

@@ -34,6 +34,18 @@ type Engine struct {
 	dryRun       bool
 }
 
+// statePath returns the Vault path used for token state tracking (custom_metadata).
+// When a non-default storage key is used, the key is appended to the path to
+// avoid metadata collisions between tokens that share a Vault path but use
+// different keys (e.g., account.token using account.label as key vs a regular
+// token using the default "token" key on the same path).
+func statePath(storage config.StorageConfig) string {
+	if storage.Key == "" || storage.Key == "token" {
+		return storage.Path
+	}
+	return storage.Path + "/" + storage.Key
+}
+
 // NewEngine creates a new rotation engine
 func NewEngine(linodeClient LinodeClient, vaultClient VaultClient, dryRun bool) *Engine {
 	return &Engine{
@@ -146,7 +158,7 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 	}
 
 	// Read existing state (if any)
-	storagePath := tokenConfig.Storage[0].Path
+	storagePath := statePath(tokenConfig.Storage[0])
 	existingState, err := e.vaultClient.ReadTokenState(ctx, storagePath)
 	if err != nil {
 		span.RecordError(err)
@@ -234,7 +246,7 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 	}
 
 	// Read existing state
-	storagePath := tokenConfig.Storage[0].Path
+	storagePath := statePath(tokenConfig.Storage[0])
 	existingState, err := e.vaultClient.ReadTokenState(ctx, storagePath)
 	if err != nil {
 		span.RecordError(err)

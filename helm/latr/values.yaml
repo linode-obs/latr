@@ -78,11 +78,11 @@ podDisruptionBudget:
 
 # latr application configuration
 config:
-  # Set to true if this config only provides global defaults (no account/tokens).
-  # See examples/multi-account/ for usage.
-  # global: true
+  # Configuration for a single-account deployment via this Helm chart.
+  # Note: globals-only configs (without an account section) are not supported here.
+  # For multi-account setups, use Kustomize overlays with separate config files.
 
-  # Account configuration (required unless global: true)
+  # Account configuration (required for this chart)
   account:
     # Label for this account (required). Also used as the Vault key when
     # using storage-based token source.

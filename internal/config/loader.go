@@ -138,13 +138,10 @@ func propagateGlobals(primary, secondary *Config) {
 		secondary.Vault.MountPath = primary.Vault.MountPath
 	}
 
-	// Observability
-	if secondary.Observability.OTelEndpoint == "" {
-		secondary.Observability.OTelEndpoint = primary.Observability.OTelEndpoint
-	}
-	if secondary.Observability.LogLevel == "" {
-		secondary.Observability.LogLevel = primary.Observability.LogLevel
-	}
+	// Note: Observability settings are NOT propagated because they are global-only.
+	// Telemetry/logging is initialized once from the primary config and applies
+	// to the entire process. Per-account observability overrides are ignored
+	// (with a warning logged in main.go).
 }
 
 // containsGlobChar checks if a path contains glob characters
