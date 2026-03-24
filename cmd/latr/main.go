@@ -71,8 +71,9 @@ func main() {
 		if cfg.IsGlobal() || cfg == primaryCfg {
 			continue
 		}
-		if cfg.Daemon.Mode != "" && cfg.Daemon.Mode != primaryCfg.Daemon.Mode ||
-			cfg.Daemon.CheckInterval != "" && cfg.Daemon.CheckInterval != primaryCfg.Daemon.CheckInterval {
+		if (cfg.Daemon.Mode != "" && cfg.Daemon.Mode != primaryCfg.Daemon.Mode) ||
+			(cfg.Daemon.CheckInterval != "" && cfg.Daemon.CheckInterval != primaryCfg.Daemon.CheckInterval) ||
+			(cfg.Daemon.DryRun != primaryCfg.Daemon.DryRun) {
 			logger.Warn("Per-account daemon settings are ignored; daemon configuration is global-only",
 				slog.String("account_label", cfg.Account.Label))
 		}

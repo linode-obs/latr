@@ -237,9 +237,10 @@ tokens:
         path: "linode/tokens/my-api-token"
 ```
 
-Account configs can also override `daemon`, `rotation`, `vault`, and
-`observability` settings from the global config. Any field not specified
-is inherited from the global defaults.
+Account configs can also override `rotation`, `vault`, and `observability`
+settings from the global config. Any field not specified is inherited from
+the global defaults. Daemon settings (`mode`, `check_interval`, `dry_run`)
+are global-only — per-account overrides are ignored with a warning.
 
 ## Usage
 

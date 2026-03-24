@@ -132,9 +132,14 @@ func (c *Client) ReadSecretKey(ctx context.Context, path, key string) (string, e
 		return "", fmt.Errorf("invalid data structure at vault path: %s", path)
 	}
 
-	value, ok := data[key].(string)
-	if !ok {
+	rawValue, exists := data[key]
+	if !exists {
 		return "", fmt.Errorf("key %q not found at vault path: %s", key, path)
+	}
+
+	value, ok := rawValue.(string)
+	if !ok {
+		return "", fmt.Errorf("key %q at vault path %s has non-string type %T", key, path, rawValue)
 	}
 
 	return value, nil
