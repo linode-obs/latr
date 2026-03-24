@@ -139,32 +139,6 @@ func (c *Client) readMergeData(ctx context.Context, fullPath, key, token string)
 	return map[string]interface{}{"data": merged}, nil
 }
 
-// ReadToken reads a token value from a KV v2 path
-func (c *Client) ReadToken(ctx context.Context, path string) (string, error) {
-	fullPath := fmt.Sprintf("%s/data/%s", c.mountPath, path)
-
-	secret, err := c.client.Logical().ReadWithContext(ctx, fullPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read token from vault: %w", err)
-	}
-
-	if secret == nil || secret.Data == nil {
-		return "", fmt.Errorf("no data found at path: %s", path)
-	}
-
-	data, ok := secret.Data["data"].(map[string]interface{})
-	if !ok {
-		return "", fmt.Errorf("invalid data structure at path: %s", path)
-	}
-
-	tokenValue, ok := data["token"].(string)
-	if !ok {
-		return "", fmt.Errorf("token value not found at path: %s", path)
-	}
-
-	return tokenValue, nil
-}
-
 // ReadSecretKey reads a specific key from a KV v2 secret at the given path
 func (c *Client) ReadSecretKey(ctx context.Context, path, key string) (string, error) {
 	fullPath := fmt.Sprintf("%s/data/%s", c.mountPath, path)

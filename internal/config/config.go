@@ -258,10 +258,14 @@ func (c *Config) validateAccountToken() error {
 	t := c.Account.Token
 
 	// Validate storage entries if present
+	supportedStorageTypes := map[string]bool{"vault": true}
 	if t.HasStorage() {
 		for i, s := range t.Storage {
 			if s.Type == "" {
 				return fmt.Errorf("account.token.storage[%d]: type is required", i)
+			}
+			if !supportedStorageTypes[s.Type] {
+				return fmt.Errorf("account.token.storage[%d]: unsupported storage type %q (supported: vault)", i, s.Type)
 			}
 			if s.Path == "" {
 				return fmt.Errorf("account.token.storage[%d]: path is required", i)
@@ -301,9 +305,13 @@ func validateToken(token *TokenConfig, prefix string) error {
 	if len(token.Storage) == 0 {
 		return fmt.Errorf("%s: at least one storage backend is required", prefix)
 	}
+	supportedStorageTypes := map[string]bool{"vault": true}
 	for i, s := range token.Storage {
 		if s.Type == "" {
 			return fmt.Errorf("%s: storage[%d]: type is required", prefix, i)
+		}
+		if !supportedStorageTypes[s.Type] {
+			return fmt.Errorf("%s: storage[%d]: unsupported storage type %q (supported: vault)", prefix, i, s.Type)
 		}
 		if s.Path == "" {
 			return fmt.Errorf("%s: storage[%d]: path is required", prefix, i)

@@ -52,7 +52,7 @@ func (t *Token) TimeUntilExpiry() time.Duration {
 
 // PercentValidityRemaining calculates what percentage of the token's validity period remains
 func (t *Token) PercentValidityRemaining() float64 {
-	if t.IsExpired() {
+	if t.IsExpired() || t.Validity.Seconds() == 0 {
 		return 0.0
 	}
 

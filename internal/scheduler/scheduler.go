@@ -126,6 +126,7 @@ func (s *Scheduler) executeCycle(ctx context.Context) error {
 	}
 
 	// Process each account's tokens
+	var failures int
 	for _, acct := range s.accounts {
 		acctAttrs := append([]any{
 			slog.String("account_label", acct.Account.Label),
@@ -142,6 +143,7 @@ func (s *Scheduler) executeCycle(ctx context.Context) error {
 			}
 
 			if err := acct.Engine.ProcessToken(ctx, tokenConfig, threshold); err != nil {
+				failures++
 				attrs := append([]any{
 					slog.String("account_label", acct.Account.Label),
 					slog.String("token_label", tokenConfig.Label),
@@ -151,6 +153,11 @@ func (s *Scheduler) executeCycle(ctx context.Context) error {
 				// Continue processing other tokens
 			}
 		}
+	}
+
+	if failures > 0 && int64(failures) == totalTokens {
+		span.SetStatus(codes.Error, "all tokens failed")
+		return fmt.Errorf("rotation cycle failed: all %d tokens encountered errors", failures)
 	}
 
 	logger.InfoContext(ctx, "Rotation cycle completed", observability.TraceAttrs(ctx)...)

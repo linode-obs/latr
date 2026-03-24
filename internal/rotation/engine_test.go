@@ -44,11 +44,6 @@ func (m *MockVaultClient) WriteToken(ctx context.Context, path, key, token strin
 	return args.Error(0)
 }
 
-func (m *MockVaultClient) ReadToken(ctx context.Context, path string) (string, error) {
-	args := m.Called(ctx, path)
-	return args.String(0), args.Error(1)
-}
-
 func (m *MockVaultClient) WriteTokenState(ctx context.Context, path string, state *models.TokenState) error {
 	args := m.Called(ctx, path, state)
 	return args.Error(0)
