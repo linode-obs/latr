@@ -67,6 +67,8 @@ func authenticateAppRole(client *api.Client, roleID, secretID string) error {
 
 // WriteToken writes a token value to a KV v2 path.
 // The key parameter specifies the key name within the secret. If empty, defaults to "token".
+// Uses JSON Merge Patch (PATCH) to update only the specified key, preserving any other
+// keys that may exist at the same path (e.g., multiple accounts sharing a secret path).
 func (c *Client) WriteToken(ctx context.Context, path, key, token string) error {
 	if key == "" {
 		key = "token"
@@ -80,9 +82,13 @@ func (c *Client) WriteToken(ctx context.Context, path, key, token string) error 
 		},
 	}
 
-	_, err := c.client.Logical().WriteWithContext(ctx, fullPath, data)
+	_, err := c.client.Logical().JSONMergePatch(ctx, fullPath, data)
 	if err != nil {
-		return fmt.Errorf("failed to write token to vault: %w", err)
+		// PATCH fails if the secret doesn't exist yet; fall back to a full write
+		_, err = c.client.Logical().WriteWithContext(ctx, fullPath, data)
+		if err != nil {
+			return fmt.Errorf("failed to write token to vault: %w", err)
+		}
 	}
 
 	return nil
