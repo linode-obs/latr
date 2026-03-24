@@ -209,6 +209,107 @@ func TestReadToken_NotFound(t *testing.T) {
 	assert.Empty(t, token)
 }
 
+func TestReadSecretKey_Success(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			response := map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" && r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			response := map[string]interface{}{
+				"data": map[string]interface{}{
+					"data": map[string]interface{}{
+						"my-key": "my-secret-value",
+					},
+					"metadata": map[string]interface{}{
+						"version": 1,
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	config := &Config{
+		Address:   server.URL,
+		RoleID:    "test-role-id",
+		SecretID:  "test-secret-id",
+		MountPath: "secret",
+	}
+
+	client, err := NewClient(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	value, err := client.ReadSecretKey(ctx, "test/path", "my-key")
+	require.NoError(t, err)
+	assert.Equal(t, "my-secret-value", value)
+}
+
+func TestReadSecretKey_MissingKey(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/auth/approle/login" {
+			w.WriteHeader(http.StatusOK)
+			response := map[string]interface{}{
+				"auth": map[string]interface{}{
+					"client_token":   "test-token",
+					"lease_duration": 3600,
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		if r.URL.Path == "/v1/secret/data/test/path" && r.Method == "GET" {
+			w.WriteHeader(http.StatusOK)
+			response := map[string]interface{}{
+				"data": map[string]interface{}{
+					"data": map[string]interface{}{
+						"other-key": "other-value",
+					},
+					"metadata": map[string]interface{}{
+						"version": 1,
+					},
+				},
+			}
+			json.NewEncoder(w).Encode(response)
+			return
+		}
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	config := &Config{
+		Address:   server.URL,
+		RoleID:    "test-role-id",
+		SecretID:  "test-secret-id",
+		MountPath: "secret",
+	}
+
+	client, err := NewClient(config)
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	value, err := client.ReadSecretKey(ctx, "test/path", "nonexistent-key")
+	require.Error(t, err)
+	assert.Empty(t, value)
+	assert.Contains(t, err.Error(), "nonexistent-key")
+}
+
 func TestWriteTokenState(t *testing.T) {
 	var lastWrittenMetadata map[string]interface{}
 

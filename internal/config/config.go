@@ -25,7 +25,8 @@ type Config struct {
 }
 
 // AccountConfig represents the Linode account used by this configuration file.
-// Every configuration file must have exactly one account block.
+// For non-global configs, exactly one account block is required.
+// Global configs (global: true) do not require an account block.
 type AccountConfig struct {
 	// Label identifies this account (e.g., "lcid-1234").
 	// Also used as the key when reading/writing the token via storage.

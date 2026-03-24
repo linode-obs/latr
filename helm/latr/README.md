@@ -45,7 +45,7 @@ config:
     token:
       storage:
         - type: vault
-          path: "secret/data/linode/accounts"
+          path: "linode/accounts"
 
   vault:
     address: "https://vault.example.com:8200"
@@ -57,7 +57,7 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/production"
+          path: "linode/tokens/production"
 
 secrets:
   vaultRoleId: "your-vault-role-id"
@@ -84,7 +84,7 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/production"
+          path: "linode/tokens/production"
 
 secrets:
   linodeToken: "your-linode-token"
@@ -238,7 +238,7 @@ config:
     token:
       storage:
         - type: vault
-          path: "secret/data/linode/accounts"
+          path: "linode/accounts"
 
   daemon:
     mode: daemon
@@ -254,7 +254,7 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/my-token"
+          path: "linode/tokens/my-token"
 
 secrets:
   vaultRoleId: "your-vault-role-id"
@@ -271,7 +271,7 @@ config:
     token:
       storage:
         - type: vault
-          path: "secret/data/linode/accounts"
+          path: "linode/accounts"
 
   vault:
     address: "https://vault.example.com:8200"
@@ -284,7 +284,7 @@ config:
       rotationThreshold: 10
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/prod-full"
+          path: "linode/tokens/prod-full"
 
     - label: "dev-limited-access"
       team: "development"
@@ -293,7 +293,7 @@ config:
       rotationThreshold: 20
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/dev-limited"
+          path: "linode/tokens/dev-limited"
 ```
 
 ### Example 3: With OpenTelemetry
@@ -306,7 +306,7 @@ config:
     token:
       storage:
         - type: vault
-          path: "secret/data/linode/accounts"
+          path: "linode/accounts"
 
   vault:
     address: "https://vault.example.com:8200"
@@ -322,7 +322,7 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/monitored"
+          path: "linode/tokens/monitored"
 ```
 
 ### Example 4: High Availability Setup

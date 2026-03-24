@@ -31,9 +31,10 @@ func TestScheduler_RunOnce(t *testing.T) {
 
 	accounts := []AccountEntry{
 		{
-			Account: config.AccountConfig{Label: "production"},
-			Tokens:  tokens,
-			Engine:  mockEngine,
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens,
+			Engine:   mockEngine,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
 
@@ -66,14 +67,16 @@ func TestScheduler_RunOnce_MultipleAccounts(t *testing.T) {
 
 	accounts := []AccountEntry{
 		{
-			Account: config.AccountConfig{Label: "production"},
-			Tokens:  tokens1,
-			Engine:  mockEngine1,
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens1,
+			Engine:   mockEngine1,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 		{
-			Account: config.AccountConfig{Label: "staging"},
-			Tokens:  tokens2,
-			Engine:  mockEngine2,
+			Account:  config.AccountConfig{Label: "staging"},
+			Tokens:   tokens2,
+			Engine:   mockEngine2,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
 
@@ -104,9 +107,10 @@ func TestScheduler_RunDaemon(t *testing.T) {
 
 	accounts := []AccountEntry{
 		{
-			Account: config.AccountConfig{Label: "production"},
-			Tokens:  tokens,
-			Engine:  mockEngine,
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens,
+			Engine:   mockEngine,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
 
@@ -146,9 +150,10 @@ func TestScheduler_RunDaemon_GracefulShutdown(t *testing.T) {
 
 	accounts := []AccountEntry{
 		{
-			Account: config.AccountConfig{Label: "production"},
-			Tokens:  tokens,
-			Engine:  mockEngine,
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens,
+			Engine:   mockEngine,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
 
@@ -192,13 +197,14 @@ func TestScheduler_TokenRotationThresholdOverride(t *testing.T) {
 
 	accounts := []AccountEntry{
 		{
-			Account: config.AccountConfig{Label: "production"},
-			Tokens:  tokens,
-			Engine:  mockEngine,
+			Account:  config.AccountConfig{Label: "production"},
+			Tokens:   tokens,
+			Engine:   mockEngine,
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
 
-	// Should use the token-specific threshold (20) instead of global (10)
+	// Should use the token-specific threshold (20) instead of account-level (10)
 	mockEngine.On("ProcessToken", mock.Anything, tokens[0], 20).Return(nil)
 
 	sched := NewScheduler(
@@ -217,9 +223,10 @@ func TestScheduler_TokenRotationThresholdOverride(t *testing.T) {
 func TestScheduler_NoTokensConfigured(t *testing.T) {
 	accounts := []AccountEntry{
 		{
-			Account: config.AccountConfig{Label: "empty"},
-			Tokens:  []config.TokenConfig{},
-			Engine:  new(MockEngine),
+			Account:  config.AccountConfig{Label: "empty"},
+			Tokens:   []config.TokenConfig{},
+			Engine:   new(MockEngine),
+			Rotation: config.RotationConfig{ThresholdPercent: 10},
 		},
 	}
 

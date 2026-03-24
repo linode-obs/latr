@@ -10,7 +10,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
     # Managed — latr will rotate this token
     label: "latr-prod-main"
     validity: "180d"
@@ -23,4 +23,4 @@ tokens:
     scopes: "linodes:read_write"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/prod-api"
+        path: "linode/tokens/prod-api"

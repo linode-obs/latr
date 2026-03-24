@@ -27,4 +27,4 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/e2e/test-daemon"
+        path: "e2e/test-daemon"

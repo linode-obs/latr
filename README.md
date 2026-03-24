@@ -147,7 +147,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
 
 # Rotation behavior
 rotation:
@@ -173,7 +173,7 @@ tokens:
     scopes: "*" # "*" for all scopes, or comma-separated list
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/my-api-token"
+        path: "linode/tokens/my-api-token"
 
   - label: "backup-token"
     team: "sre-team"
@@ -182,7 +182,7 @@ tokens:
     rotation_threshold: 15 # Override global threshold for this token
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/backup"
+        path: "linode/tokens/backup"
 ```
 
 ### Multi-File Configuration
@@ -226,7 +226,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
 
 tokens:
   - label: "my-api-token"
@@ -234,7 +234,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/my-api-token"
+        path: "linode/tokens/my-api-token"
 ```
 
 Account configs can also override `daemon`, `rotation`, `vault`, and
@@ -319,7 +319,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
 
 tokens:
   - label: "linode-api"
@@ -327,7 +327,7 @@ tokens:
     scopes: "linodes:read_write"
     storage:
       - type: "vault"
-        path: "secret/data/prod/linode-api"
+        path: "prod/linode-api"
 ```
 
 **configs/staging.yaml:**
@@ -340,7 +340,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
 
 # No account.vault — inherits global vault credentials
 
@@ -353,7 +353,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/staging/api"
+        path: "staging/api"
 ```
 
 All tokens in a configuration file use that file's account credentials. Tokens

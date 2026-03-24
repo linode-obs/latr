@@ -12,8 +12,8 @@ data:
       team: {{ .Values.config.account.team | quote }}
       {{- end }}
       vault:
-        role_id: "${VAULT_ROLE_ID}"
-        secret_id: "${VAULT_SECRET_ID}"
+        role_id: {{ if .Values.config.account.vault.roleId }}{{ .Values.config.account.vault.roleId | quote }}{{ else }}"${VAULT_ROLE_ID}"{{ end }}
+        secret_id: {{ if .Values.config.account.vault.secretId }}{{ .Values.config.account.vault.secretId | quote }}{{ else }}"${VAULT_SECRET_ID}"{{ end }}
         {{- if .Values.config.account.vault.address }}
         address: {{ .Values.config.account.vault.address | quote }}
         {{- end }}

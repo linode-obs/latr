@@ -10,7 +10,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
 
 rotation:
   threshold_percent: 20  # Rotate earlier in staging
@@ -25,4 +25,4 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/staging-api"
+        path: "linode/tokens/staging-api"

@@ -29,7 +29,7 @@ account:
   token:
     storage:
       - type: "vault"
-        path: "secret/data/linode/accounts"
+        path: "linode/accounts"
     # Uncomment to enable rotation management:
     # label: "latr-main-token"
     # validity: "180d"
@@ -65,7 +65,7 @@ tokens:
     scopes: "*" # "*" for all scopes, or comma-separated list
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/my-api-token"
+        path: "linode/tokens/my-api-token"
 
   - label: "backup-token"
     team: "sre-team"
@@ -74,4 +74,4 @@ tokens:
     rotation_threshold: 15 # Override global threshold for this token
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/backup"
+        path: "linode/tokens/backup"

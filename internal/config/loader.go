@@ -23,8 +23,6 @@ func Load(path string) (*Config, error) {
 
 // LoadAll loads one or more configuration files matching a path or glob pattern.
 // Each file is loaded independently — accounts are not merged across files.
-// Global settings (daemon, rotation, vault, observability) are taken from the
-// first config file; subsequent files only need account and tokens.
 func LoadAll(pathOrPattern string) ([]*Config, error) {
 	var paths []string
 
@@ -124,6 +122,9 @@ func propagateGlobals(primary, secondary *Config) {
 	}
 	if secondary.Daemon.CheckInterval == "" {
 		secondary.Daemon.CheckInterval = primary.Daemon.CheckInterval
+	}
+	if !secondary.Daemon.DryRun && primary.Daemon.DryRun {
+		secondary.Daemon.DryRun = primary.Daemon.DryRun
 	}
 
 	// Rotation

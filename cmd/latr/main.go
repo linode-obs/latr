@@ -54,8 +54,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Use global settings from the first config
-	primaryCfg := configs[0]
+	// Use global settings from the global config, falling back to the first config
+	var primaryCfg *config.Config
+	for _, cfg := range configs {
+		if cfg.IsGlobal() {
+			primaryCfg = cfg
+			break
+		}
+	}
+	if primaryCfg == nil {
+		primaryCfg = configs[0]
+	}
 
 	// Log each loaded configuration
 	var totalTokens int
@@ -168,6 +177,10 @@ func main() {
 				}
 			}
 		}
+		if linodeToken == "" && cfg.Account.Token != nil && cfg.Account.Token.HasStorage() {
+			logger.WarnContext(ctx, "account.token.storage is configured but no supported storage type was found; falling back to LINODE_TOKEN env var",
+				slog.String("account_label", acctLabel))
+		}
 		if linodeToken == "" {
 			linodeToken = os.Getenv("LINODE_TOKEN")
 		}
@@ -178,7 +191,7 @@ func main() {
 		}
 
 		linodeClient := linode.NewClient(linodeToken, cfg.Account.APIURL)
-		engine := rotation.NewEngine(linodeClient, vaultClient, primaryCfg.Daemon.DryRun)
+		engine := rotation.NewEngine(linodeClient, vaultClient, cfg.Daemon.DryRun)
 
 		tokens := cfg.AllTokens()
 
@@ -189,9 +202,10 @@ func main() {
 			slog.Int("token_count", len(tokens)))
 
 		accounts = append(accounts, scheduler.AccountEntry{
-			Account: cfg.Account,
-			Tokens:  tokens,
-			Engine:  engine,
+			Account:  cfg.Account,
+			Tokens:   tokens,
+			Engine:   engine,
+			Rotation: cfg.Rotation,
 		})
 	}
 

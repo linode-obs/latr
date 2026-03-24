@@ -19,9 +19,10 @@ type Engine interface {
 
 // AccountEntry represents an account with its associated engine and tokens
 type AccountEntry struct {
-	Account config.AccountConfig
-	Tokens  []config.TokenConfig
-	Engine  Engine
+	Account  config.AccountConfig
+	Tokens   []config.TokenConfig
+	Engine   Engine
+	Rotation config.RotationConfig
 }
 
 // Scheduler manages the execution schedule for token rotation
@@ -136,8 +137,8 @@ func (s *Scheduler) executeCycle(ctx context.Context) error {
 		logger.InfoContext(ctx, "Processing account", acctAttrs...)
 
 		for _, tokenConfig := range acct.Tokens {
-			// Determine threshold (use token-specific if set, otherwise global)
-			threshold := s.rotation.ThresholdPercent
+			// Determine threshold (use token-specific if set, otherwise account-level)
+			threshold := acct.Rotation.ThresholdPercent
 			if tokenConfig.RotationThreshold > 0 {
 				threshold = tokenConfig.RotationThreshold
 			}
