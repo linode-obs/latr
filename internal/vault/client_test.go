@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wbh1/latr/pkg/models"
+	"github.com/linode-obs/latr/pkg/models"
 )
 
 func TestNewClient_AppRoleAuth(t *testing.T) {

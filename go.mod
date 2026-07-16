@@ -1,4 +1,4 @@
-module github.com/wbh1/latr
+module github.com/linode-obs/latr
 
 go 1.25.4
 

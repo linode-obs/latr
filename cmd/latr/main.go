@@ -9,12 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/wbh1/latr/internal/config"
-	"github.com/wbh1/latr/internal/linode"
-	"github.com/wbh1/latr/internal/observability"
-	"github.com/wbh1/latr/internal/rotation"
-	"github.com/wbh1/latr/internal/scheduler"
-	"github.com/wbh1/latr/internal/vault"
+	"github.com/linode-obs/latr/internal/config"
+	"github.com/linode-obs/latr/internal/linode"
+	"github.com/linode-obs/latr/internal/observability"
+	"github.com/linode-obs/latr/internal/rotation"
+	"github.com/linode-obs/latr/internal/scheduler"
+	"github.com/linode-obs/latr/internal/vault"
 )
 
 var (

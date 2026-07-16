@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/wbh1/latr/internal/config"
+	"github.com/linode-obs/latr/internal/config"
 )
 
 // MockEngine is a mock of the rotation engine

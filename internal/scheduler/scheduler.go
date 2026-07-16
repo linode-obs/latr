@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/wbh1/latr/internal/config"
-	"github.com/wbh1/latr/internal/observability"
+	"github.com/linode-obs/latr/internal/config"
+	"github.com/linode-obs/latr/internal/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
