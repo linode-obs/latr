@@ -1,7 +1,7 @@
 # ABOUTME: Development Dockerfile for latr - builds from source for local testing
 # ABOUTME: Used by docker-compose.yml for local dev (NOT for releases - see Dockerfile)
 
-FROM golang:1.25.4
+FROM golang:1.26.5
 
 WORKDIR /build
 
