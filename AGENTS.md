@@ -53,7 +53,7 @@
 
 ### Build & Deployment
 
-- **Container-first**: Primary deployment via `ghcr.io/wbh1/latr`
+- **Container-first**: Primary deployment via `ghcr.io/linode-obs/latr`
 - **Multi-arch**: linux/amd64 and linux/arm64 support
 - **GoReleaser**: Automated releases on git tags
 - Local build: `go build -o latr ./cmd/latr` (or use a custom `mise` task if defined)

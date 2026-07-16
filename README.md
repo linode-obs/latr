@@ -28,10 +28,10 @@ A Go application for automatically managing and rotating Linode API tokens with 
 
 ```bash
 # Pull the latest image from GitHub Container Registry
-docker pull ghcr.io/wbh1/latr:latest
+docker pull ghcr.io/linode-obs/latr:latest
 
 # Or pull a specific version
-docker pull ghcr.io/wbh1/latr:v1.0.0
+docker pull ghcr.io/linode-obs/latr:v1.0.0
 ```
 
 #### One-Shot Mode (Run Once)
@@ -42,7 +42,7 @@ docker run --rm \
   -e LINODE_TOKEN="your-linode-api-token" \
   -e VAULT_ROLE_ID="your-vault-role-id" \
   -e VAULT_SECRET_ID="your-vault-secret-id" \
-  ghcr.io/wbh1/latr:latest \
+  ghcr.io/linode-obs/latr:latest \
   -config /config/config.yaml
 ```
 
@@ -56,7 +56,7 @@ docker run -d \
   -e LINODE_TOKEN="your-linode-api-token" \
   -e VAULT_ROLE_ID="your-vault-role-id" \
   -e VAULT_SECRET_ID="your-vault-secret-id" \
-  ghcr.io/wbh1/latr:latest \
+  ghcr.io/linode-obs/latr:latest \
   -config /config/config.yaml
 
 # View logs
@@ -71,7 +71,7 @@ docker stop latr
 ```yaml
 services:
   latr:
-    image: ghcr.io/wbh1/latr:latest
+    image: ghcr.io/linode-obs/latr:latest
     container_name: latr
     restart: unless-stopped
     volumes:
@@ -92,13 +92,13 @@ Images are available for:
 
 ### Download Binary from Releases
 
-Download the latest release for your platform from the [releases page](https://github.com/wbh1/latr/releases).
+Download the latest release for your platform from the [releases page](https://github.com/linode-obs/latr/releases).
 
 ### Build from Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/wbh1/latr.git
+git clone https://github.com/linode-obs/latr.git
 cd latr
 
 # Build the binary
@@ -272,7 +272,7 @@ Releases are automated via GoReleaser and GitHub Actions:
 2. **Automated release process**:
    - Builds binaries for Linux, macOS, Windows (amd64 and arm64)
    - Creates multi-arch Docker images (amd64, arm64)
-   - Publishes images to `ghcr.io/wbh1/latr`
+   - Publishes images to `ghcr.io/linode-obs/latr`
    - Generates release notes from conventional commits
    - Uploads release artifacts to GitHub Releases
 
@@ -371,11 +371,11 @@ Structured logging with rotation events, errors, and state changes
 
 ## Roadmap
 
-- [x] Add proper tracing with OTel (<https://github.com/wbh1/latr/pull/11>)
-- [ ] Use structured logging (<https://github.com/wbh1/latr/issues/16>)
-- [ ] Additional storage backends (<https://github.com/wbh1/latr/issues/17>)
-- [x] Prometheus metrics exporter (<https://github.com/wbh1/latr/pull/11>)
-- [x] Integration tests with Docker Compose (<https://github.com/wbh1/latr/pull/2>)
+- [x] Add proper tracing with OTel (<https://github.com/linode-obs/latr/pull/11>)
+- [ ] Use structured logging (<https://github.com/linode-obs/latr/issues/16>)
+- [ ] Additional storage backends (<https://github.com/linode-obs/latr/issues/17>)
+- [x] Prometheus metrics exporter (<https://github.com/linode-obs/latr/pull/11>)
+- [x] Integration tests with Docker Compose (<https://github.com/linode-obs/latr/pull/2>)
 
 ## Contributing
 

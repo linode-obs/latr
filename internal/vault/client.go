@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/vault/api"
-	"github.com/wbh1/latr/pkg/models"
+	"github.com/linode-obs/latr/pkg/models"
 )
 
 // Config holds Vault client configuration

@@ -60,4 +60,4 @@ To check the deployment status:
   $ kubectl get deployment {{ include "latr.fullname" . }} -n {{ .Release.Namespace }}
 
 For more information about latr, visit:
-  https://github.com/wbh1/latr
+  https://github.com/linode-obs/latr

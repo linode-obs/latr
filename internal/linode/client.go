@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/linode/linodego"
-	"github.com/wbh1/latr/pkg/models"
+	"github.com/linode-obs/latr/pkg/models"
 	"golang.org/x/oauth2"
 )
 

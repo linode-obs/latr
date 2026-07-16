@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/wbh1/latr/internal/config"
-	"github.com/wbh1/latr/pkg/models"
+	"github.com/linode-obs/latr/internal/config"
+	"github.com/linode-obs/latr/pkg/models"
 )
 
 // MockLinodeClient is a mock implementation of the Linode client

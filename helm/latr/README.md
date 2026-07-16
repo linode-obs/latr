@@ -1,6 +1,6 @@
 # latr Helm Chart
 
-This Helm chart deploys [latr](https://github.com/wbh1/latr) (Linode API Token Rotator) on a Kubernetes cluster.
+This Helm chart deploys [latr](https://github.com/linode-obs/latr) (Linode API Token Rotator) on a Kubernetes cluster.
 
 ## Overview
 
@@ -15,7 +15,7 @@ latr is an automation tool that manages and automatically rotates Linode API tok
   - KV v2 secret engine mounted
   - Appropriate policies configured
 - A valid Linode API token
-- Container image available at `ghcr.io/wbh1/latr`
+- Container image available at `ghcr.io/linode-obs/latr`
 
 ## Installing the Chart
 
@@ -95,7 +95,7 @@ The following table lists the configurable parameters of the latr chart and thei
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `replicaCount` | Number of latr replicas | `1` |
-| `image.repository` | Image repository | `ghcr.io/wbh1/latr` |
+| `image.repository` | Image repository | `ghcr.io/linode-obs/latr` |
 | `image.pullPolicy` | Image pull policy | `IfNotPresent` |
 | `image.tag` | Image tag (defaults to chart appVersion) | `""` |
 | `imagePullSecrets` | Image pull secrets | `[]` |
@@ -373,6 +373,6 @@ This chart is provided under the same license as the latr application.
 
 ## Links
 
-- [latr GitHub Repository](https://github.com/wbh1/latr)
+- [latr GitHub Repository](https://github.com/linode-obs/latr)
 - [Linode API Documentation](https://www.linode.com/docs/api/)
 - [HashiCorp Vault Documentation](https://www.vaultproject.io/docs)

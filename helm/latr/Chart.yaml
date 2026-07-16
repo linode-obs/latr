@@ -18,10 +18,10 @@ keywords:
   - automation
 
 maintainers:
-  - name: wbh1
-    url: https://github.com/wbh1
+  - name: linode-obs
+    url: https://github.com/linode-obs
 
 sources:
-  - https://github.com/wbh1/latr
+  - https://github.com/linode-obs/latr
 
-home: https://github.com/wbh1/latr
+home: https://github.com/linode-obs/latr

@@ -80,15 +80,15 @@ dockers:
     goarch: amd64
     dockerfile: Dockerfile
     image_templates:
-      - "ghcr.io/wbh1/latr:{{ .Version }}-amd64"
-      - "ghcr.io/wbh1/latr:latest-amd64"
+      - "ghcr.io/linode-obs/latr:{{ .Version }}-amd64"
+      - "ghcr.io/linode-obs/latr:latest-amd64"
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/wbh1/latr"
+      - "--label=org.opencontainers.image.source=https://github.com/linode-obs/latr"
       - "--label=org.opencontainers.image.description=Linode API Token Rotator"
       - "--label=org.opencontainers.image.licenses=Apache-2.0"
 
@@ -99,34 +99,34 @@ dockers:
     goarch: arm64
     dockerfile: Dockerfile
     image_templates:
-      - "ghcr.io/wbh1/latr:{{ .Version }}-arm64"
-      - "ghcr.io/wbh1/latr:latest-arm64"
+      - "ghcr.io/linode-obs/latr:{{ .Version }}-arm64"
+      - "ghcr.io/linode-obs/latr:latest-arm64"
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source=https://github.com/wbh1/latr"
+      - "--label=org.opencontainers.image.source=https://github.com/linode-obs/latr"
       - "--label=org.opencontainers.image.description=Linode API Token Rotator"
       - "--label=org.opencontainers.image.licenses=Apache-2.0"
 
 docker_manifests:
   # Create multi-arch manifest for version tag
-  - name_template: ghcr.io/wbh1/latr:{{ .Version }}
+  - name_template: ghcr.io/linode-obs/latr:{{ .Version }}
     image_templates:
-      - ghcr.io/wbh1/latr:{{ .Version }}-amd64
-      - ghcr.io/wbh1/latr:{{ .Version }}-arm64
+      - ghcr.io/linode-obs/latr:{{ .Version }}-amd64
+      - ghcr.io/linode-obs/latr:{{ .Version }}-arm64
 
   # Create multi-arch manifest for latest tag
-  - name_template: ghcr.io/wbh1/latr:latest
+  - name_template: ghcr.io/linode-obs/latr:latest
     image_templates:
-      - ghcr.io/wbh1/latr:latest-amd64
-      - ghcr.io/wbh1/latr:latest-arm64
+      - ghcr.io/linode-obs/latr:latest-amd64
+      - ghcr.io/linode-obs/latr:latest-arm64
 
 release:
   github:
-    owner: wbh1
+    owner: linode-obs
     name: latr
   draft: false
   prerelease: auto
@@ -134,12 +134,12 @@ release:
   header: |
     ## latr {{ .Version }}
 
-    **Full Changelog**: https://github.com/wbh1/latr/compare/{{ .PreviousTag }}...{{ .Tag }}
+    **Full Changelog**: https://github.com/linode-obs/latr/compare/{{ .PreviousTag }}...{{ .Tag }}
 
     ### Container Images
 
     ```bash
-    docker pull ghcr.io/wbh1/latr:{{ .Version }}
+    docker pull ghcr.io/linode-obs/latr:{{ .Version }}
     ```
 
     Multi-architecture support: `linux/amd64`, `linux/arm64`
