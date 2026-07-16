@@ -11,8 +11,8 @@
     dashboardNamePrefix: '',
     dashboardTags: ['latr-mixin', 'latr', 'linode', 'token-rotation', 'vault'],
     grafanaDashboardUid: 'latr-token-rotator',
-    dashboardRefresh: '1m',
-    dashboardPeriod: 'now-1h',
+    dashboardRefresh: '',
+    dashboardPeriod: 'now-3h',
 
     // Optional multi-cluster support (appended to by/group labels when true).
     showMultiCluster: false,
