@@ -353,6 +353,19 @@ latr supports OpenTelemetry for observability:
 - `latr_token_validity_remaining_seconds` - Time until rotation needed
 - `latr_vault_storage_errors_total` - Vault write failures
 
+### Grafana dashboard & alerts (mixin)
+
+A [Prometheus monitoring mixin](https://monitoring.mixins.dev/) lives in [`latr-mixin/`](./latr-mixin/). It provides a Grafana dashboard and alerting rules for the metrics above.
+
+```bash
+cd latr-mixin
+make build
+# → dashboards_out/latr.json
+# → prometheus_alerts.yaml
+```
+
+See [`latr-mixin/README.md`](./latr-mixin/README.md) for configuration (job selectors, thresholds) and kube-prometheus usage.
+
 ### Traces
 
 Distributed tracing for rotation operations (when OTel endpoint configured)

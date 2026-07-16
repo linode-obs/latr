@@ -15,6 +15,11 @@ coverage.txt
 # Dependency directories
 vendor/
 
+# Mixin build outputs
+latr-mixin/dashboards_out/
+latr-mixin/prometheus_alerts.yaml
+latr-mixin/vendor/
+
 # Go workspace file
 go.work
 
