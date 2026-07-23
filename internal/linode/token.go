@@ -119,20 +119,31 @@ func TokenFileCacheTTLFromEnv() time.Duration {
 	return tokenCacheTTL
 }
 
-// TokenProviderFromEnv prefers a mounted token file when LINODE_TOKEN_FILE is set
-// and readable, then falls back to LINODE_TOKEN. Returns the provider and a short
-// description of the source for logging (never includes the token value).
+// TokenProviderFromEnv chooses the management-token source once at process start.
+//
+// Preference:
+//  1. LINODE_TOKEN_FILE when set and readable at startup → file provider (hot-reload)
+//  2. Otherwise LINODE_TOKEN if set → static provider
+//
+// Source selection is not re-evaluated later: if the file provider was chosen,
+// later read failures do not fall back to LINODE_TOKEN (requests fail until the
+// file is readable again). Startup fallback to env only applies when the file
+// is missing/unreadable at init (e.g. mount race); prefer setting only
+// LINODE_TOKEN_FILE in production if you require file-backed auth.
+//
+// Returns the provider and a short description of the source for logging
+// (never includes the token value).
 func TokenProviderFromEnv(ctx context.Context) (TokenProvider, string, error) {
 	tokenFilePath := strings.TrimSpace(os.Getenv(TokenFilePathEnv))
 	if tokenFilePath != "" {
-		fileProvider := NewTokenFileProvider(tokenFilePath, TokenFileCacheTTLFromEnv())
+		cacheTTL := TokenFileCacheTTLFromEnv()
+		fileProvider := NewTokenFileProvider(tokenFilePath, cacheTTL)
 		if _, err := fileProvider.GetToken(ctx); err == nil {
-			return fileProvider.GetToken, fmt.Sprintf("file %q (cache TTL %s)", fileProvider.Path(), TokenFileCacheTTLFromEnv()), nil
+			return fileProvider.GetToken, fmt.Sprintf("file %q (cache TTL %s)", fileProvider.Path(), cacheTTL), nil
 		} else {
-			// Fall back to env if the file is not yet present (e.g. race at startup).
-			// Callers that require the file should set only LINODE_TOKEN_FILE and omit LINODE_TOKEN.
+			// Fall back to env only at startup if the file is not yet present.
 			if envToken := strings.TrimSpace(os.Getenv(AccessTokenEnv)); envToken != "" {
-				return StaticTokenProvider(envToken), fmt.Sprintf("environment variable %q (file %q not readable: %v)", AccessTokenEnv, tokenFilePath, err), nil
+				return StaticTokenProvider(envToken), fmt.Sprintf("environment variable %q (file %q not readable at startup: %v)", AccessTokenEnv, tokenFilePath, err), nil
 			}
 			return nil, "", fmt.Errorf("failed to load linode API token from %s=%q: %w", TokenFilePathEnv, tokenFilePath, err)
 		}

@@ -131,7 +131,17 @@ export LINODE_TOKEN_FILE=/var/run/secrets/latr/linode-token
 
 latr injects the bearer token on **each** Linode API request via a `TokenProvider` (same idea as [linode-blockstorage-csi-driver#592](https://github.com/linode/linode-blockstorage-csi-driver/pull/592)). After the mounted file changes, the next request after the cache TTL uses the new value—no pod restart required.
 
-If both `LINODE_TOKEN_FILE` and `LINODE_TOKEN` are set, the file wins when readable; otherwise latr falls back to the env value.
+**How the source is chosen (once at startup):**
+
+1. If `LINODE_TOKEN_FILE` is set **and the file is readable at process start**, latr uses the file provider for the lifetime of the process (re-reading the file on the cache TTL).
+2. Otherwise, if `LINODE_TOKEN` is set, latr uses that static value (no hot-reload).
+3. If neither works, latr exits with an error.
+
+Notes:
+
+- Startup-only fallback: if both are set but the file is **not** readable at start (e.g. mount race), latr falls back to `LINODE_TOKEN` and **does not** switch to the file later.
+- Runtime: if the file provider was selected and the file later becomes unreadable or empty, API calls fail until the file is valid again—there is **no** mid-run fallback to `LINODE_TOKEN`.
+- For production hot-reload, set `LINODE_TOKEN_FILE` (and omit `LINODE_TOKEN`) so auth cannot silently stick to a static env token.
 
 ### Configuration File
 
