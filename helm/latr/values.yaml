@@ -128,7 +128,7 @@ config:
 # Secrets configuration
 # These values should be provided via a separate values file or via --set flags
 secrets:
-  # Linode API token (required)
+  # Linode API token (required unless linodeTokenFile.enabled)
   linodeToken: ""
 
   # Vault AppRole credentials
@@ -139,6 +139,18 @@ secrets:
   # Use an existing secret instead of creating a new one
   # The secret should contain keys: linode-token, vault-role-id, vault-secret-id
   existingSecret: ""
+
+# Mount the management Linode PAT as a file for hot-reload (no pod restart on rotate).
+# When enabled, LINODE_TOKEN_FILE is set and LINODE_TOKEN env injection is skipped.
+# Pattern matches linode-blockstorage-csi-driver token file mount.
+linodeTokenFile:
+  enabled: false
+  # Mount path directory; file is written as <mountPath>/<key>
+  mountPath: /var/run/secrets/latr
+  # Key inside the Kubernetes Secret (same secret as vault credentials by default)
+  key: linode-token
+  # Cache TTL seconds before re-reading the file (LINODE_TOKEN_CACHE_TTL_SECONDS)
+  cacheTTLSeconds: 60
 
 # Environment variables
 # Additional environment variables to set

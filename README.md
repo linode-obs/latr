@@ -112,9 +112,26 @@ go install ./cmd/latr
 
 ### Environment Variables
 
-- `LINODE_TOKEN`: Your Linode API token (required)
+- `LINODE_TOKEN`: Management Linode API token (PAT) used to create/rotate other tokens. Required unless `LINODE_TOKEN_FILE` is set.
+- `LINODE_TOKEN_FILE`: Path to a file containing the management PAT (e.g. Kubernetes secret volume mount). When set and readable, latr **re-reads** this file on a short cache TTL so the PAT can rotate without restarting the process. Prefer this in daemon/Kubernetes deployments.
+- `LINODE_TOKEN_CACHE_TTL_SECONDS`: How long to cache a file-backed token before re-reading (default: `60`).
 - `VAULT_ROLE_ID`: Vault AppRole role ID (optional if in config)
 - `VAULT_SECRET_ID`: Vault AppRole secret ID (optional if in config)
+- `LINODE_API_URL`: Override Linode API base URL (tests / custom endpoints)
+
+#### Management token hot-reload
+
+By default, `LINODE_TOKEN` is fixed for the process lifetime. For Kubernetes (or any setup that can update a mounted secret file):
+
+```bash
+export LINODE_TOKEN_FILE=/var/run/secrets/latr/linode-token
+# optional: export LINODE_TOKEN_CACHE_TTL_SECONDS=30
+./latr -config config.yaml
+```
+
+latr injects the bearer token on **each** Linode API request via a `TokenProvider` (same idea as [linode-blockstorage-csi-driver#592](https://github.com/linode/linode-blockstorage-csi-driver/pull/592)). After the mounted file changes, the next request after the cache TTL uses the new value—no pod restart required.
+
+If both `LINODE_TOKEN_FILE` and `LINODE_TOKEN` are set, the file wins when readable; otherwise latr falls back to the env value.
 
 ### Configuration File
 
