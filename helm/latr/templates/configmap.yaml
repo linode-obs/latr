@@ -1,3 +1,4 @@
+{{- if ne (include "latr.multiAccount" .) "true" }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,6 +6,12 @@ metadata:
   labels:
     {{- include "latr.labels" . | nindent 4 }}
 data:
+  {{- if .Values.configFiles }}
+  {{- range $name, $content := .Values.configFiles }}
+  {{ $name }}: |
+    {{- $content | nindent 4 }}
+  {{- end }}
+  {{- else }}
   config.yaml: |
     daemon:
       mode: {{ .Values.config.daemon.mode }}
@@ -29,3 +36,30 @@ data:
 
     tokens:
       {{- toYaml .Values.config.tokens | nindent 6 }}
+  {{- end }}
+{{- end }}
+{{- if eq (include "latr.multiAccount" .) "true" }}
+{{- range $account := .Values.accounts }}
+{{- $ctx := dict "root" $ "account" $account }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "latr.accountFullname" $ctx }}
+  labels:
+    {{- include "latr.accountLabels" $ctx | nindent 4 }}
+data:
+  {{- if $account.configFiles }}
+  {{- range $name, $content := $account.configFiles }}
+  {{ $name }}: |
+    {{- $content | nindent 4 }}
+  {{- end }}
+  {{- else if $account.config }}
+  {{/* Expect latr-native YAML keys (snake_case). Prefer configFiles for multi-file layouts. */}}
+  config.yaml: |
+    {{- toYaml $account.config | nindent 4 }}
+  {{- else }}
+  {{- fail (printf "account %s: set configFiles or config" (include "latr.accountFullname" $ctx)) }}
+  {{- end }}
+{{- end }}
+{{- end }}
