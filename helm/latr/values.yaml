@@ -152,3 +152,69 @@ envFrom: []
 #     name: my-secret
 # - configMapRef:
 #     name: my-configmap
+
+# ---------------------------------------------------------------------------
+# Multi-account mode (one helm release / one Argo Application → N Deployments)
+# ---------------------------------------------------------------------------
+# When accounts is non-empty, the chart creates one Deployment + ConfigMap +
+# Secret (unless existingSecret) per entry. Single-instance values above are
+# ignored for workloads (serviceAccount is still shared).
+#
+# Name each Linode account workload you manage (e.g. personal-account,
+# work-account). Names are used as Kubernetes resource names and must be valid
+# DNS-1123 labels: lowercase alphanumeric, hyphens allowed, must start and end
+# with an alphanumeric character, max 63 chars. There is no special public
+# "customer id" field — pick names that fit your environment.
+#
+# Prefer one Argo Application for the whole release (not one Application per
+# account) if you care about Application count in your cluster.
+#
+# accounts: []
+#
+# accounts:
+#   - name: personal-account          # DNS-1123 label → Deployment/ConfigMap/Secret name
+#     # id: "optional-opaque-id"      # only if name omitted → latr-<id> (must still be DNS-1123)
+#     secrets:
+#       # Prefer existingSecret + external secret injection in production
+#       existingSecret: ""
+#       linodeToken: ""
+#       vaultRoleId: ""
+#       vaultSecretId: ""
+#     # Preferred: multi-file config (process settings + token lists)
+#     configFiles:
+#       process.yaml: |
+#         vault:
+#           address: https://vault.example.com:8200
+#           mount_path: secret
+#           role_id: ${VAULT_ROLE_ID}
+#           secret_id: ${VAULT_SECRET_ID}
+#         daemon:
+#           mode: daemon
+#           check_interval: 6h
+#       tokens.yaml: |
+#         tokens:
+#           - label: my-api
+#             team: platform
+#             validity: 180d
+#             scopes: "*"
+#             storage:
+#               - type: vault
+#                 path: linode/tokens/my-api
+#     # Alternative: single embedded config object (latr YAML / snake_case keys)
+#     # config:
+#     #   daemon: { mode: daemon, check_interval: 6h, dry_run: false }
+#     #   vault: { address: "...", mount_path: secret }
+#     #   tokens: []
+#     # env: []
+#     # resources: {}
+#     # volumeMounts: []
+#     # volumes: []
+accounts: []
+
+# Single-instance multi-file config (optional). When set in single-instance mode,
+# files are mounted under /config and latr is started with -config /config/*
+# configFiles: {}
+#   process.yaml: |
+#     ...
+#   tokens.yaml: |
+#     ...
