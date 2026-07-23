@@ -21,4 +21,4 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/e2e/test-dryrun"
+        path: "e2e/test-dryrun"

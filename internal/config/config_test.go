@@ -37,7 +37,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -71,7 +71,7 @@ tokens:
 	assert.Equal(t, "*", token.Scopes)
 	require.Len(t, token.Storage, 1)
 	assert.Equal(t, "vault", token.Storage[0].Type)
-	assert.Equal(t, "secret/data/linode/tokens/test", token.Storage[0].Path)
+	assert.Equal(t, "linode/tokens/test", token.Storage[0].Path)
 }
 
 func TestParseConfigWithDefaults(t *testing.T) {
@@ -88,7 +88,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -105,6 +105,164 @@ tokens:
 	assert.Equal(t, 10, cfg.Rotation.ThresholdPercent)
 	assert.Equal(t, "secret", cfg.Vault.MountPath)
 	assert.Equal(t, "info", cfg.Observability.LogLevel)
+	require.Len(t, cfg.Tokens, 1)
+	require.Len(t, cfg.Tokens[0].Storage, 1)
+	assert.Equal(t, DefaultStorageKey, cfg.Tokens[0].Storage[0].Key)
+	assert.Equal(t, DefaultStorageAction, cfg.Tokens[0].Storage[0].Action)
+}
+
+func TestParseConfig_StorageKey(t *testing.T) {
+	yamlContent := `
+vault:
+  address: "https://vault.example.com"
+  role_id: "test-role-id"
+  secret_id: "test-secret-id"
+
+tokens:
+  - label: "test-token"
+    team: "platform-team"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "shared-all/sre-compute/ipservice"
+        key: "api_token"
+`
+
+	cfg, err := Parse([]byte(yamlContent))
+	require.NoError(t, err)
+	require.Len(t, cfg.Tokens, 1)
+	require.Len(t, cfg.Tokens[0].Storage, 1)
+	assert.Equal(t, "api_token", cfg.Tokens[0].Storage[0].Key)
+
+	cfg.ApplyDefaults()
+	// Custom key must not be overwritten by defaults
+	assert.Equal(t, "api_token", cfg.Tokens[0].Storage[0].Key)
+	assert.Equal(t, DefaultStorageAction, cfg.Tokens[0].Storage[0].Action)
+}
+
+func TestParseConfig_StorageActionAppend(t *testing.T) {
+	yamlContent := `
+vault:
+  address: "https://vault.example.com"
+  role_id: "test-role-id"
+  secret_id: "test-secret-id"
+
+tokens:
+  - label: "test-token"
+    team: "platform-team"
+    validity: "90d"
+    scopes: "*"
+    storage:
+      - type: "vault"
+        path: "shared-all/sre/mixed-secret"
+        key: "linode_token"
+        action: "append"
+`
+
+	cfg, err := Parse([]byte(yamlContent))
+	require.NoError(t, err)
+	assert.Equal(t, StorageActionAppend, cfg.Tokens[0].Storage[0].Action)
+
+	cfg.ApplyDefaults()
+	assert.Equal(t, StorageActionAppend, cfg.Tokens[0].Storage[0].Action)
+
+	err = cfg.Validate()
+	require.NoError(t, err)
+}
+
+func TestValidateConfig_InvalidStorageAction(t *testing.T) {
+	cfg := &Config{
+		Vault: VaultConfig{
+			Address:  "https://vault.example.com",
+			RoleID:   "role",
+			SecretID: "secret",
+		},
+		Tokens: []TokenConfig{
+			{
+				Label:    "t",
+				Team:     "team",
+				Validity: "90d",
+				Scopes:   "*",
+				Storage: []StorageConfig{
+					{Type: "vault", Path: "path", Action: "merge"},
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid action")
+}
+
+func TestValidateConfig_StoragePathRules(t *testing.T) {
+	base := func(path, mount string) *Config {
+		return &Config{
+			Vault: VaultConfig{
+				Address:   "https://vault.example.com",
+				RoleID:    "role",
+				SecretID:  "secret",
+				MountPath: mount,
+			},
+			Tokens: []TokenConfig{
+				{
+					Label:    "t",
+					Team:     "team",
+					Validity: "90d",
+					Scopes:   "*",
+					Storage: []StorageConfig{
+						{Type: "vault", Path: path},
+					},
+				},
+			},
+		}
+	}
+
+	t.Run("rejects leading data prefix", func(t *testing.T) {
+		err := base("data/linode/tokens/x", "secret").Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "leading")
+	})
+
+	t.Run("rejects mount plus data prefix", func(t *testing.T) {
+		err := base("secret/data/linode/tokens/x", "secret").Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must not include vault.mount_path")
+	})
+
+	t.Run("allows data as a non-leading path segment", func(t *testing.T) {
+		err := base("team/data/token", "secret").Validate()
+		require.NoError(t, err)
+	})
+
+	t.Run("allows normal relative path", func(t *testing.T) {
+		err := base("shared-all/sre-o11y/linode-api", "infra").Validate()
+		require.NoError(t, err)
+	})
+}
+
+func TestNormalizeStorageAction_CaseAndWhitespace(t *testing.T) {
+	assert.Equal(t, StorageActionReplace, NormalizeStorageAction(""))
+	assert.Equal(t, StorageActionReplace, NormalizeStorageAction(" Replace "))
+	assert.Equal(t, StorageActionAppend, NormalizeStorageAction("APPEND"))
+}
+
+func TestApplyDefaults_NormalizesKeyAndAction(t *testing.T) {
+	cfg := &Config{
+		Tokens: []TokenConfig{
+			{
+				Storage: []StorageConfig{
+					{Type: "vault", Path: "p", Key: "  api  ", Action: " APPEND "},
+				},
+			},
+		},
+	}
+	cfg.ApplyDefaults()
+	// Key is only trimmed by NormalizeStorageKey; embedded spaces preserved after trim ends
+	assert.Equal(t, "api", NormalizeStorageKey("  api  "))
+	assert.Equal(t, "api", cfg.Tokens[0].Storage[0].Key)
+	assert.Equal(t, StorageActionAppend, cfg.Tokens[0].Storage[0].Action)
 }
 
 func TestValidateConfig_ValidityPeriodTooLong(t *testing.T) {
@@ -122,7 +280,7 @@ func TestValidateConfig_ValidityPeriodTooLong(t *testing.T) {
 				Validity: "7mo", // More than 6 months
 				Scopes:   "*",
 				Storage: []StorageConfig{
-					{Type: "vault", Path: "secret/data/linode/tokens/test"},
+					{Type: "vault", Path: "linode/tokens/test"},
 				},
 			},
 		},
@@ -148,7 +306,7 @@ func TestValidateConfig_ValidityPeriodExactly6Months(t *testing.T) {
 				Validity: "180d", // Exactly 6 months
 				Scopes:   "*",
 				Storage: []StorageConfig{
-					{Type: "vault", Path: "secret/data/linode/tokens/test"},
+					{Type: "vault", Path: "linode/tokens/test"},
 				},
 			},
 		},
@@ -324,7 +482,7 @@ tokens:
     rotation_threshold: 15
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -366,7 +524,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))
@@ -394,7 +552,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	cfg, err := Parse([]byte(yamlContent))

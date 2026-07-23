@@ -5,7 +5,7 @@ A [Prometheus monitoring mixin](https://monitoring.mixins.dev/) for [latr](https
 It packages:
 
 - A Grafana dashboard for rotations, token validity, duration, and Vault errors
-- Prometheus alerting rules for failed rotations, Vault storage failures, low remaining validity, and missing metrics
+- Prometheus alerting rules for failed rotations, Vault storage failures, append CAS contention, low remaining validity, and missing metrics
 
 Mixins are written in [Jsonnet](https://jsonnet.org/) and are typically installed with [jsonnet-bundler](https://github.com/jsonnet-bundler/jsonnet-bundler).
 
