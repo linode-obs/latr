@@ -21,8 +21,11 @@ type LinodeClient interface {
 
 // VaultClient defines the interface for Vault operations
 type VaultClient interface {
-	WriteToken(ctx context.Context, path, token string) error
-	ReadToken(ctx context.Context, path string) (string, error)
+	// WriteToken stores token under the given KV data key (empty key means "token").
+	// action is "replace" (default) or "append" (merge into existing secret data).
+	WriteToken(ctx context.Context, path, token, key, action string) error
+	// ReadToken reads token from the given KV data key (empty key means "token").
+	ReadToken(ctx context.Context, path, key string) (string, error)
 	WriteTokenState(ctx context.Context, path string, state *models.TokenState) error
 	ReadTokenState(ctx context.Context, path string) (*models.TokenState, error)
 }
@@ -55,11 +58,13 @@ func (e *Engine) ProcessToken(ctx context.Context, tokenConfig config.TokenConfi
 	span.SetAttributes(
 		attribute.String("token.label", tokenConfig.Label),
 		attribute.String("token.team", tokenConfig.Team),
+		attribute.Int("token.storage_count", len(tokenConfig.Storage)),
 	)
 
 	attrs := append([]any{
 		slog.String("token_label", tokenConfig.Label),
 		slog.String("team", tokenConfig.Team),
+		slog.Int("storage_backends", len(tokenConfig.Storage)),
 	}, observability.TraceAttrs(ctx)...)
 	logger.InfoContext(ctx, "Processing token", attrs...)
 
@@ -183,7 +188,7 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 		span.SetStatus(codes.Error, "failed to store token")
 		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
 		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
-		observability.RecordVaultStorageError(ctx, storagePath)
+		// Vault write metrics/errors recorded inside vault.Client.WriteToken
 		return fmt.Errorf("failed to store token in vault: %w", err)
 	}
 
@@ -275,7 +280,7 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 		span.SetStatus(codes.Error, "failed to store token")
 		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
 		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
-		observability.RecordVaultStorageError(ctx, storagePath)
+		// Vault write metrics/errors recorded inside vault.Client.WriteToken
 		return fmt.Errorf("failed to store token in vault: %w", err)
 	}
 
@@ -301,16 +306,23 @@ func (e *Engine) storeTokenInBackends(ctx context.Context, storageConfigs []conf
 	logger := observability.GetLogger()
 
 	for _, storage := range storageConfigs {
-		if storage.Type == "vault" {
-			if err := e.vaultClient.WriteToken(ctx, storage.Path, token); err != nil {
-				return err
-			}
-			attrs := append([]any{
-				slog.String("storage_type", "vault"),
-				slog.String("vault_path", storage.Path),
-			}, observability.TraceAttrs(ctx)...)
-			logger.InfoContext(ctx, "Stored token in Vault", attrs...)
+		if storage.Type != "vault" {
+			continue
 		}
+
+		key := config.NormalizeStorageKey(storage.Key)
+		action := config.NormalizeStorageAction(storage.Action)
+
+		if err := e.vaultClient.WriteToken(ctx, storage.Path, token, key, action); err != nil {
+			return err
+		}
+		attrs := append([]any{
+			slog.String("storage_type", "vault"),
+			slog.String("vault_path", storage.Path),
+			slog.String("vault_key", key),
+			slog.String("vault_action", action),
+		}, observability.TraceAttrs(ctx)...)
+		logger.InfoContext(ctx, "Stored token in Vault", attrs...)
 	}
 	return nil
 }

@@ -123,7 +123,10 @@ config:
   #   rotationThreshold: 10
   #   storage:
   #     - type: vault
-  #       path: secret/data/linode/tokens/my-api-token
+  #       # path is relative to config.vault.mountPath (no "data/" prefix)
+  #       path: linode/tokens/my-api-token
+  #       key: token       # optional; default "token"
+  #       action: replace  # optional; "replace" (default) or "append" (needs AppRole read)
 
 # Secrets configuration
 # These values should be provided via a separate values file or via --set flags

@@ -45,7 +45,8 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/production"
+          # relative to config.vault.mountPath (no "data/" prefix)
+          path: "linode/tokens/production"
 
 secrets:
   linodeToken: "your-linode-token"
@@ -194,7 +195,7 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/my-token"
+          path: "linode/tokens/my-token"
 
 secrets:
   linodeToken: "your-linode-token"
@@ -217,7 +218,7 @@ config:
       rotationThreshold: 10
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/prod-full"
+          path: "linode/tokens/prod-full"
 
     - label: "dev-limited-access"
       team: "development"
@@ -226,7 +227,7 @@ config:
       rotationThreshold: 20
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/dev-limited"
+          path: "linode/tokens/dev-limited"
 ```
 
 ### Example 3: With OpenTelemetry
@@ -247,7 +248,7 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/monitored"
+          path: "linode/tokens/monitored"
 ```
 
 ### Example 4: High Availability Setup

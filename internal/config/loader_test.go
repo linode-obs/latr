@@ -28,7 +28,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
@@ -70,7 +70,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/token1"
+        path: "linode/tokens/token1"
 `
 
 	config2 := `
@@ -81,7 +81,7 @@ tokens:
     scopes: "linodes:read_only"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/token2"
+        path: "linode/tokens/token2"
 `
 
 	err := os.WriteFile(filepath.Join(tmpDir, "config1.yaml"), []byte(config1), 0644)
@@ -200,7 +200,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
@@ -230,7 +230,7 @@ tokens:
     scopes: "*"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/test"
+        path: "linode/tokens/test"
 `
 
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
