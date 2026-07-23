@@ -23,10 +23,54 @@ var (
 	date    = "unknown"
 )
 
+func printUsage() {
+	fmt.Fprintf(os.Stderr, `latr - Linode API Token Rotator
+
+Usage:
+  latr -config <file|glob>     Run rotation (daemon or one-shot per config)
+  latr check-config [flags]    Validate config without Linode/Vault side effects
+  latr version                 Show version information
+
+Daemon flags:
+  -config string
+    	Path to configuration file or glob pattern (required)
+  -version
+    	Show version information
+
+Examples:
+  latr -config config.yaml
+  latr check-config --config config.yaml
+  latr check-config --dir path/to/config-dir
+  latr check-config --process process.yaml --config team-config.yml
+
+Environment (daemon):
+  LINODE_TOKEN       Linode API token (required to run)
+  VAULT_ROLE_ID      Optional if set in config
+  VAULT_SECRET_ID    Optional if set in config
+
+For check-config flags: latr check-config -h
+`)
+}
+
 func main() {
-	// Parse CLI flags
+	// Subcommands (before flag.Parse so daemon flags stay backward-compatible).
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "check-config":
+			os.Exit(runCheckConfig(os.Args[2:]))
+		case "help", "-h", "--help":
+			printUsage()
+			os.Exit(0)
+		case "version", "-version", "--version":
+			fmt.Printf("latr version %s (commit: %s, built: %s)\n", version, commit, date)
+			os.Exit(0)
+		}
+	}
+
+	// Parse CLI flags (daemon / one-shot)
 	configPath := flag.String("config", "", "Path to configuration file or glob pattern (required)")
 	showVersion := flag.Bool("version", false, "Show version information")
+	flag.Usage = printUsage
 	flag.Parse()
 
 	if *showVersion {
@@ -43,6 +87,7 @@ func main() {
 
 	if *configPath == "" {
 		logger.Error("Missing required flag", slog.String("flag", "config"))
+		printUsage()
 		os.Exit(1)
 	}
 
