@@ -348,10 +348,10 @@ latr supports OpenTelemetry for observability:
 ### Metrics
 
 - `latr_tokens_total` - Total configured tokens
-- `latr_rotations_total{status="success|failure"}` - Rotation attempts
-- `latr_rotation_duration_seconds` - Rotation operation duration
-- `latr_token_validity_remaining_seconds` - Time until rotation needed
-- `latr_vault_storage_errors_total` - Vault write failures
+- `latr_rotations_total{status,label,team}` - Rotation attempts (per token)
+- `latr_rotation_duration_seconds{label,team}` - Rotation operation duration
+- `latr_token_validity_remaining_seconds{label,team}` - Time until rotation needed
+- `latr_vault_storage_errors_total{path}` - Vault write failures
 
 ### Grafana dashboard & alerts (mixin)
 

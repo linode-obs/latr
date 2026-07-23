@@ -14,9 +14,9 @@ Mixins are written in [Jsonnet](https://jsonnet.org/) and are typically installe
 | Metric | Type | Labels |
 | --- | --- | --- |
 | `latr_tokens_total` | gauge | — |
-| `latr_rotations_total` | counter | `status` (`success`\|`failure`), `label` |
-| `latr_token_validity_remaining_seconds` | gauge | `label` |
-| `latr_rotation_duration_seconds_*` | histogram | `label` |
+| `latr_rotations_total` | counter | `status` (`success`\|`failure`), `label`, `team` |
+| `latr_token_validity_remaining_seconds` | gauge | `label`, `team` |
+| `latr_rotation_duration_seconds_*` | histogram | `label`, `team` |
 | `latr_vault_storage_errors_total` | counter | `path` |
 
 latr exports these via OpenTelemetry. Names above assume Prometheus-compatible export (histogram `_bucket` / `_sum` / `_count`).

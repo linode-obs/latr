@@ -99,7 +99,7 @@ func (e *Engine) ProcessToken(ctx context.Context, tokenConfig config.TokenConfi
 
 	// Record token validity remaining metric
 	validityRemaining := time.Until(existingToken.ExpiresAt).Seconds()
-	observability.RecordTokenValidityRemaining(ctx, tokenConfig.Label, validityRemaining)
+	observability.RecordTokenValidityRemaining(ctx, tokenConfig.Label, tokenConfig.Team, validityRemaining)
 	span.SetAttributes(attribute.Float64("token.validity_remaining_seconds", validityRemaining))
 
 	if existingToken.NeedsRotation(thresholdPercent) {
@@ -151,7 +151,7 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to read token state")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
 		return fmt.Errorf("failed to read token state: %w", err)
 	}
 
@@ -163,8 +163,8 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create token")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
-		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
+		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 		return fmt.Errorf("failed to create token %s in Linode: %w", tokenConfig.Label, err)
 	}
 
@@ -181,8 +181,8 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 		_ = e.updateState(ctx, storagePath, newToken, existingState, expiry)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to store token")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
-		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
+		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 		observability.RecordVaultStorageError(ctx, storagePath)
 		return fmt.Errorf("failed to store token in vault: %w", err)
 	}
@@ -191,15 +191,15 @@ func (e *Engine) createNewToken(ctx context.Context, tokenConfig config.TokenCon
 	if err := e.updateState(ctx, storagePath, newToken, existingState, expiry); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to update state")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
-		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
+		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 		return fmt.Errorf("failed to update token state: %w", err)
 	}
 
 	// Record successful rotation
 	span.SetStatus(codes.Ok, "token created successfully")
-	observability.RecordRotation(ctx, tokenConfig.Label, true)
-	observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+	observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, true)
+	observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 
 	return nil
 }
@@ -239,7 +239,7 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to read token state")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
 		return fmt.Errorf("failed to read token state: %w", err)
 	}
 
@@ -251,8 +251,8 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create token")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
-		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
+		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 		return fmt.Errorf("failed to create token %s in Linode: %w", tokenConfig.Label, err)
 	}
 
@@ -273,8 +273,8 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 		_ = e.updateStateAfterRotation(ctx, storagePath, newToken, existingToken, existingState)
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to store token")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
-		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
+		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 		observability.RecordVaultStorageError(ctx, storagePath)
 		return fmt.Errorf("failed to store token in vault: %w", err)
 	}
@@ -283,15 +283,15 @@ func (e *Engine) rotateToken(ctx context.Context, tokenConfig config.TokenConfig
 	if err := e.updateStateAfterRotation(ctx, storagePath, newToken, existingToken, existingState); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to update state")
-		observability.RecordRotation(ctx, tokenConfig.Label, false)
-		observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+		observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, false)
+		observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 		return fmt.Errorf("failed to update token state: %w", err)
 	}
 
 	// Record successful rotation
 	span.SetStatus(codes.Ok, "token rotated successfully")
-	observability.RecordRotation(ctx, tokenConfig.Label, true)
-	observability.RecordRotationDuration(ctx, tokenConfig.Label, time.Since(startTime))
+	observability.RecordRotation(ctx, tokenConfig.Label, tokenConfig.Team, true)
+	observability.RecordRotationDuration(ctx, tokenConfig.Label, tokenConfig.Team, time.Since(startTime))
 
 	return nil
 }

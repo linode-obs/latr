@@ -20,7 +20,7 @@
           {
             alert: 'LatrTokenRotationFailed',
             expr: |||
-              sum by (label) (
+              sum by (label, team) (
                 increase(latr_rotations_total%(selFailure)s[%(window)s])
               ) > 0
             ||| % {
@@ -34,7 +34,7 @@
             annotations: {
               summary: 'latr failed to rotate a Linode API token.',
               description: |||
-                Token label {{ $labels.label }} has {{ $value | humanize }} failed rotation attempt(s) in the last %(window)s.
+                Token label {{ $labels.label }} (team {{ $labels.team }}) has {{ $value | humanize }} failed rotation attempt(s) in the last %(window)s.
                 Check latr logs for Linode API or Vault errors. After a successful retry, complete CSI follow-up if required.
               ||| % { window: cfg.alertWindow },
             },
@@ -64,7 +64,7 @@
           {
             alert: 'LatrTokenValidityLow',
             expr: |||
-              min by (label) (
+              min by (label, team) (
                 latr_token_validity_remaining_seconds%(sel)s
               ) < %(threshold)s
             ||| % {
@@ -78,7 +78,7 @@
             annotations: {
               summary: 'A managed Linode API token is close to its rotation threshold.',
               description: |||
-                Token label {{ $labels.label }} has only {{ $value | humanizeDuration }} remaining until latr considers rotation needed (threshold %(threshold)s).
+                Token label {{ $labels.label }} (team {{ $labels.team }}) has only {{ $value | humanizeDuration }} remaining until latr considers rotation needed (threshold %(threshold)s).
                 Confirm latr is running and able to reach Linode and Vault.
               ||| % { threshold: cfg.tokenValidityLowSeconds },
             },
