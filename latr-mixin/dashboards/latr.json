@@ -529,8 +529,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (status, label) (rate(latr_rotations_total{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval]))",
-          "legendFormat": "{{label}} {{status}}",
+          "expr": "sum by (status, label, team) (rate(latr_rotations_total{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval]))",
+          "legendFormat": "{{team}}/{{label}} {{status}}",
           "range": true,
           "refId": "A"
         }
@@ -627,8 +627,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (status, label) (increase(latr_rotations_total{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval]))",
-          "legendFormat": "{{label}} {{status}}",
+          "expr": "sum by (status, label, team) (increase(latr_rotations_total{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval]))",
+          "legendFormat": "{{team}}/{{label}} {{status}}",
           "range": true,
           "refId": "A"
         }
@@ -743,8 +743,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "max by (label) (latr_token_validity_remaining_seconds{__LATR_SELECTOR__,label=~\"$token_label\"})",
-          "legendFormat": "{{label}}",
+          "expr": "max by (label, team) (latr_token_validity_remaining_seconds{__LATR_SELECTOR__,label=~\"$token_label\"})",
+          "legendFormat": "{{team}}/{{label}}",
           "range": true,
           "refId": "A"
         }
@@ -820,10 +820,10 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "max by (label) (latr_token_validity_remaining_seconds{__LATR_SELECTOR__,label=~\"$token_label\"}) / 86400",
+          "expr": "max by (label, team) (latr_token_validity_remaining_seconds{__LATR_SELECTOR__,label=~\"$token_label\"}) / 86400",
           "format": "table",
           "instant": true,
-          "legendFormat": "{{label}}",
+          "legendFormat": "{{team}}/{{label}}",
           "refId": "A"
         }
       ],
@@ -948,8 +948,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le, label) (rate(latr_rotation_duration_seconds_bucket{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval])))",
-          "legendFormat": "p50 {{label}}",
+          "expr": "histogram_quantile(0.50, sum by (le, label, team) (rate(latr_rotation_duration_seconds_bucket{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval])))",
+          "legendFormat": "p50 {{team}}/{{label}}",
           "range": true,
           "refId": "A"
         },
@@ -959,8 +959,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, label) (rate(latr_rotation_duration_seconds_bucket{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval])))",
-          "legendFormat": "p95 {{label}}",
+          "expr": "histogram_quantile(0.95, sum by (le, label, team) (rate(latr_rotation_duration_seconds_bucket{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{team}}/{{label}}",
           "range": true,
           "refId": "B"
         },
@@ -970,8 +970,8 @@
             "uid": "${datasource}"
           },
           "editorMode": "code",
-          "expr": "sum by (label) (rate(latr_rotation_duration_seconds_sum{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval])) / sum by (label) (rate(latr_rotation_duration_seconds_count{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval]))",
-          "legendFormat": "avg {{label}}",
+          "expr": "sum by (label, team) (rate(latr_rotation_duration_seconds_sum{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval])) / sum by (label, team) (rate(latr_rotation_duration_seconds_count{__LATR_SELECTOR__,label=~\"$token_label\"}[$__rate_interval]))",
+          "legendFormat": "avg {{team}}/{{label}}",
           "range": true,
           "refId": "C"
         }
@@ -1108,7 +1108,7 @@
           "showLineNumbers": false,
           "showMiniMap": false
         },
-        "content": "## Metrics\n\n| Metric | Type | Labels |\n| --- | --- | --- |\n| `latr_tokens_total` | gauge | \u2014 |\n| `latr_rotations_total` | counter | `status` (`success`\\|`failure`), `label` |\n| `latr_token_validity_remaining_seconds` | gauge | `label` |\n| `latr_rotation_duration_seconds_*` | histogram | `label` |\n| `latr_vault_storage_errors_total` | counter | `path` |\n\nlatr exports OpenTelemetry metrics (latr_*). Ensure they are exposed to Prometheus in a compatible form (histogram `_bucket` / `_sum` / `_count`).\n\nAfter a successful rotation, verify downstream consumers pick up the new token.",
+        "content": "## Metrics\n\n| Metric | Type | Labels |\n| --- | --- | --- |\n| `latr_tokens_total` | gauge | \u2014 |\n| `latr_rotations_total` | counter | `status` (`success`\\|`failure`), `label`, `team` |\n| `latr_token_validity_remaining_seconds` | gauge | `label`, `team` |\n| `latr_rotation_duration_seconds_*` | histogram | `label`, `team` |\n| `latr_vault_storage_errors_total` | counter | `path` |\n\nlatr exports OpenTelemetry metrics (latr_*). Ensure they are exposed to Prometheus in a compatible form (histogram `_bucket` / `_sum` / `_count`).\n\nAfter a successful rotation, verify downstream consumers pick up the new token.",
         "mode": "markdown"
       },
       "pluginVersion": "10.4.0",

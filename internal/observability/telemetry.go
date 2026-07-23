@@ -211,8 +211,20 @@ func RecordTokenCount(ctx context.Context, count int64) {
 	globalMetrics.TokensTotal.Record(ctx, count)
 }
 
+// tokenMetricAttrs returns attributes for per-token metrics that already use label.
+// team is included so alerts can be routed to the owning team (same value as config team).
+func tokenMetricAttrs(label, team string, extra ...attribute.KeyValue) []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, 2+len(extra))
+	attrs = append(attrs,
+		attribute.String("label", label),
+		attribute.String("team", team),
+	)
+	attrs = append(attrs, extra...)
+	return attrs
+}
+
 // RecordRotation records a rotation attempt with success/failure status
-func RecordRotation(ctx context.Context, label string, success bool) {
+func RecordRotation(ctx context.Context, label, team string, success bool) {
 	if globalMetrics == nil {
 		return
 	}
@@ -222,29 +234,28 @@ func RecordRotation(ctx context.Context, label string, success bool) {
 	}
 	globalMetrics.RotationsTotal.Add(ctx, 1,
 		metric.WithAttributes(
-			attribute.String("status", status),
-			attribute.String("label", label),
+			tokenMetricAttrs(label, team, attribute.String("status", status))...,
 		),
 	)
 }
 
 // RecordRotationDuration records the duration of a rotation operation
-func RecordRotationDuration(ctx context.Context, label string, duration time.Duration) {
+func RecordRotationDuration(ctx context.Context, label, team string, duration time.Duration) {
 	if globalMetrics == nil {
 		return
 	}
 	globalMetrics.RotationDuration.Record(ctx, duration.Seconds(),
-		metric.WithAttributes(attribute.String("label", label)),
+		metric.WithAttributes(tokenMetricAttrs(label, team)...),
 	)
 }
 
 // RecordTokenValidityRemaining records the time remaining until rotation is needed
-func RecordTokenValidityRemaining(ctx context.Context, label string, seconds float64) {
+func RecordTokenValidityRemaining(ctx context.Context, label, team string, seconds float64) {
 	if globalMetrics == nil {
 		return
 	}
 	globalMetrics.TokenValidityRemaining.Record(ctx, seconds,
-		metric.WithAttributes(attribute.String("label", label)),
+		metric.WithAttributes(tokenMetricAttrs(label, team)...),
 	)
 }
 
