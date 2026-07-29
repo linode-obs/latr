@@ -122,7 +122,6 @@ The following table lists the configurable parameters of the latr chart and thei
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `resources.limits.cpu` | CPU limit | `500m` |
 | `resources.limits.memory` | Memory limit | `256Mi` |
 | `resources.requests.cpu` | CPU request | `100m` |
 | `resources.requests.memory` | Memory request | `128Mi` |
