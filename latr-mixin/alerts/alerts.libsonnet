@@ -42,7 +42,7 @@
           {
             alert: 'LatrVaultStorageErrors',
             expr: |||
-              sum by (path) (
+              sum by (path, action) (
                 increase(latr_vault_storage_errors_total%(sel)s[%(window)s])
               ) > 0
             ||| % {
@@ -56,9 +56,39 @@
             annotations: {
               summary: 'latr failed to write a rotated token to Vault.',
               description: |||
-                Vault path {{ $labels.path }} had {{ $value | humanize }} storage error(s) in the last %(window)s.
+                Vault path {{ $labels.path }} (action={{ $labels.action }}) had {{ $value | humanize }} storage error(s) in the last %(window)s.
                 Linode and Vault may be out of sync — do not revoke tokens until storage succeeds and consumers are updated.
+                For action=append, check AppRole has read+write on the data path and that concurrent writers are not thrashing CAS.
               ||| % { window: cfg.alertWindow },
+            },
+          },
+          {
+            // Sustained CAS conflicts mean shared secrets have concurrent writers
+            // racing latr appends (or CAS misconfiguration). Occasional conflicts are OK.
+            alert: 'LatrVaultAppendCASContention',
+            expr: |||
+              sum(
+                increase(latr_vault_append_cas_conflicts_total%(sel)s[%(window)s])
+              ) > %(casThreshold)s
+            ||| % {
+              sel: sel,
+              window: cfg.alertWindow,
+              casThreshold: cfg.appendCASConflictAlertThreshold,
+            },
+            'for': cfg.alertFor,
+            labels: {
+              severity: 'warning',
+            },
+            annotations: {
+              summary: 'latr Vault append is hitting frequent check-and-set conflicts.',
+              description: |||
+                latr observed {{ $value | humanize }} Vault KV CAS conflict(s) during append writes in the last %(window)s (threshold %(casThreshold)s).
+                Another process may be updating the same secret, or multiple latr pods may be active.
+                Check vault_path in latr logs ("Vault append CAS conflict") and ensure a single active latr writer per secret.
+              ||| % {
+                window: cfg.alertWindow,
+                casThreshold: cfg.appendCASConflictAlertThreshold,
+              },
             },
           },
           {

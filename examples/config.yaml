@@ -31,7 +31,12 @@ tokens:
     scopes: "*" # "*" for all scopes, or comma-separated list
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/my-api-token"
+        # Path is relative to vault.mount_path (NOT including mount or "data/").
+        # Client writes to: {mount_path}/data/{path}
+        # Example below → secret/data/linode/tokens/my-api-token
+        path: "linode/tokens/my-api-token"
+        # key defaults to "token" when omitted
+        # action defaults to "replace" when omitted
 
   - label: "backup-token"
     team: "sre-team"
@@ -40,7 +45,7 @@ tokens:
     rotation_threshold: 15 # Override global threshold for this token
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/backup"
+        path: "linode/tokens/backup"
 
   - label: "short-lived-token"
     team: "dev-team"
@@ -48,4 +53,10 @@ tokens:
     scopes: "linodes:read_write"
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/dev"
+        path: "linode/tokens/dev"
+        # Override KV data key for consumers that do not read "token"
+        # (e.g. legacy Salt / IPService-style secrets)
+        key: "api_token"
+        # action: "replace" (default) — secret data becomes only this key
+        # action: "append"  — merge this key into existing secret data (needs AppRole read)
+        action: "append"

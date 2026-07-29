@@ -40,6 +40,17 @@ type Metrics struct {
 	RotationDuration        metric.Float64Histogram
 	TokenValidityRemaining  metric.Float64Gauge
 	VaultStorageErrorsTotal metric.Int64Counter
+	// VaultWritesTotal counts KV data writes by action (replace|append) and result.
+	// PromQL: sum by (action, result) (rate(latr_vault_writes_total[5m]))
+	VaultWritesTotal metric.Int64Counter
+	// VaultWriteDuration records latency of Vault KV data writes by action.
+	// PromQL: histogram_quantile(0.99, sum by (le, action) (rate(latr_vault_write_duration_seconds_bucket[5m])))
+	VaultWriteDuration metric.Float64Histogram
+	// VaultAppendCASConflictsTotal counts CAS version mismatches during append
+	// (each conflict before a successful retry or exhaustion).
+	// PromQL: sum(rate(latr_vault_append_cas_conflicts_total[5m]))
+	// Alert when sustained: increase(...[15m]) > N under concurrent writers on shared secrets.
+	VaultAppendCASConflictsTotal metric.Int64Counter
 }
 
 var (
@@ -180,12 +191,43 @@ func createMetrics(meter metric.Meter) (*Metrics, error) {
 		return nil, fmt.Errorf("failed to create vault_storage_errors_total counter: %w", err)
 	}
 
+	// sum by (action, result) (rate(latr_vault_writes_total[5m]))
+	vaultWritesTotal, err := meter.Int64Counter(
+		"latr_vault_writes_total",
+		metric.WithDescription("Total Vault KV data writes by storage action and result"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vault_writes_total counter: %w", err)
+	}
+
+	// histogram_quantile(0.99, sum by (le, action) (rate(latr_vault_write_duration_seconds_bucket[5m])))
+	vaultWriteDuration, err := meter.Float64Histogram(
+		"latr_vault_write_duration_seconds",
+		metric.WithDescription("Duration of Vault KV data write operations"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vault_write_duration histogram: %w", err)
+	}
+
+	// sum(rate(latr_vault_append_cas_conflicts_total[5m]))
+	vaultAppendCASConflictsTotal, err := meter.Int64Counter(
+		"latr_vault_append_cas_conflicts_total",
+		metric.WithDescription("Vault KV check-and-set conflicts while appending a token key"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create vault_append_cas_conflicts_total counter: %w", err)
+	}
+
 	return &Metrics{
-		TokensTotal:             tokensTotal,
-		RotationsTotal:          rotationsTotal,
-		RotationDuration:        rotationDuration,
-		TokenValidityRemaining:  tokenValidityRemaining,
-		VaultStorageErrorsTotal: vaultStorageErrorsTotal,
+		TokensTotal:                  tokensTotal,
+		RotationsTotal:               rotationsTotal,
+		RotationDuration:             rotationDuration,
+		TokenValidityRemaining:       tokenValidityRemaining,
+		VaultStorageErrorsTotal:      vaultStorageErrorsTotal,
+		VaultWritesTotal:             vaultWritesTotal,
+		VaultWriteDuration:           vaultWriteDuration,
+		VaultAppendCASConflictsTotal: vaultAppendCASConflictsTotal,
 	}, nil
 }
 
@@ -259,14 +301,57 @@ func RecordTokenValidityRemaining(ctx context.Context, label, team string, secon
 	)
 }
 
-// RecordVaultStorageError records a Vault storage error
-func RecordVaultStorageError(ctx context.Context, path string) {
+// RecordVaultStorageError records a Vault storage error.
+// action should be a low-cardinality value (replace|append|state|unknown).
+func RecordVaultStorageError(ctx context.Context, path, action string) {
 	if globalMetrics == nil {
 		return
 	}
+	if action == "" {
+		action = "unknown"
+	}
 	globalMetrics.VaultStorageErrorsTotal.Add(ctx, 1,
-		metric.WithAttributes(attribute.String("path", path)),
+		metric.WithAttributes(
+			attribute.String("path", path),
+			attribute.String("action", action),
+		),
 	)
+}
+
+// RecordVaultWrite records a Vault KV data write attempt.
+// action: replace|append; success selects result=success|error.
+//
+//	sum by (action, result) (rate(latr_vault_writes_total[5m]))
+//	histogram_quantile(0.99, sum by (le, action) (rate(latr_vault_write_duration_seconds_bucket[5m])))
+func RecordVaultWrite(ctx context.Context, action string, success bool, duration time.Duration) {
+	if globalMetrics == nil {
+		return
+	}
+	if action == "" {
+		action = "unknown"
+	}
+	result := "success"
+	if !success {
+		result = "error"
+	}
+	attrs := metric.WithAttributes(
+		attribute.String("action", action),
+		attribute.String("result", result),
+	)
+	globalMetrics.VaultWritesTotal.Add(ctx, 1, attrs)
+	globalMetrics.VaultWriteDuration.Record(ctx, duration.Seconds(),
+		metric.WithAttributes(attribute.String("action", action)),
+	)
+}
+
+// RecordVaultAppendCASConflict records one CAS version mismatch during append.
+//
+//	sum(rate(latr_vault_append_cas_conflicts_total[5m]))
+func RecordVaultAppendCASConflict(ctx context.Context) {
+	if globalMetrics == nil {
+		return
+	}
+	globalMetrics.VaultAppendCASConflictsTotal.Add(ctx, 1)
 }
 
 // TraceAttrs extracts OpenTelemetry trace context attributes for structured logging

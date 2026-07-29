@@ -151,7 +151,11 @@ tokens:
     scopes: "*" # "*" for all scopes, or comma-separated list
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/my-api-token"
+        # Path is relative to vault.mount_path (omit mount name and "data/").
+        # With mount_path "secret", this writes secret/data/linode/tokens/my-api-token
+        path: "linode/tokens/my-api-token"
+        # key: "token"      # optional KV data key (default: token)
+        # action: "replace" # optional: replace (default) or append
 
   - label: "backup-token"
     team: "sre-team"
@@ -160,8 +164,29 @@ tokens:
     rotation_threshold: 15 # Override global threshold for this token
     storage:
       - type: "vault"
-        path: "secret/data/linode/tokens/backup"
+        path: "linode/tokens/backup"
+        key: "api_token"   # for consumers that do not read key "token"
+        action: "append"   # preserve other keys already on this secret
 ```
+
+### Vault storage fields
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `type` | (required) | Only `vault` is supported today |
+| `path` | (required) | Secret path **relative to** `vault.mount_path`. Do **not** include a leading `data/` or `{mount}/data/` prefix (a later path segment named `data` is fine). latr writes `{mount_path}/data/{path}` and state to `{mount_path}/metadata/{path}`. |
+| `key` | `token` | KV v2 **data** map key for the token string (custom metadata for rotation state is separate). |
+| `action` | `replace` | How to write the data map (case-insensitive): |
+
+**`action: replace` (default)** — data map becomes only `{key: <token>}`. Other data keys on that secret are removed. Safe when latr owns the whole secret (typical). Custom metadata is not cleared.
+
+**`action: append`** — read-modify-write with KV v2 check-and-set (CAS) retries: set/overwrite `key`, keep other data keys. Use when the secret is shared with non-latr fields (e.g. multi-key consumer secrets).
+
+AppRole policy implications:
+
+- Both actions need `create`/`update` on `…/data/…` and `…/metadata/…` (for rotation state).
+- **`append` also needs `read` on `…/data/…`** so latr can merge existing keys.
+- Prefer least-privilege paths (no mount-wide wildcards).
 
 ## Usage
 
@@ -351,7 +376,23 @@ latr supports OpenTelemetry for observability:
 - `latr_rotations_total{status,label,team}` - Rotation attempts (per token)
 - `latr_rotation_duration_seconds{label,team}` - Rotation operation duration
 - `latr_token_validity_remaining_seconds{label,team}` - Time until rotation needed
-- `latr_vault_storage_errors_total{path}` - Vault write failures
+- `latr_vault_storage_errors_total{path,action}` - Vault write failures (`action` is `replace` or `append`)
+- `latr_vault_writes_total{action,result}` - Vault KV data writes (`action=replace|append`, `result=success|error`)
+- `latr_vault_write_duration_seconds{action}` - Vault KV write latency histogram
+- `latr_vault_append_cas_conflicts_total` - Check-and-set version mismatches during `action: append` (retries)
+
+Useful PromQL:
+
+```promql
+# Write success rate by action
+sum by (action, result) (rate(latr_vault_writes_total[5m]))
+
+# p99 Vault write latency
+histogram_quantile(0.99, sum by (le, action) (rate(latr_vault_write_duration_seconds_bucket[5m])))
+
+# CAS contention on shared secrets (append only)
+sum(rate(latr_vault_append_cas_conflicts_total[5m]))
+```
 
 ### Grafana dashboard & alerts (mixin)
 

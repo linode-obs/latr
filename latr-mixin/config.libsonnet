@@ -26,5 +26,8 @@
     alertWindow: '15m',
     // Pending duration before alerts fire.
     alertFor: '5m',
+    // Fire when append CAS conflicts exceed this count in alertWindow
+    // (default: more than a few retries — occasional conflicts are normal).
+    appendCASConflictAlertThreshold: 10,
   },
 }
