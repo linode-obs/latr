@@ -1,0 +1,75 @@
+# Example multi-account values for one helm release / one Argo Application.
+# Renders two Deployments: personal-account and work-account.
+#
+# Names are operator-chosen labels for Linode accounts you manage — not a
+# special "customer id" field from the public API.
+#
+#   helm template latr ./helm/latr -f helm/latr/examples/values-multi-account.yaml
+
+image:
+  repository: ghcr.io/linode-obs/latr
+  tag: "0.3.0"
+
+resources:
+  limits:
+    cpu: 200m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+accounts:
+  - name: personal-account
+    secrets:
+      linodeToken: "REDACTED-bootstrap-or-avp"
+      vaultRoleId: "REDACTED"
+      vaultSecretId: "REDACTED"
+    configFiles:
+      process.yaml: |
+        daemon:
+          mode: daemon
+          check_interval: 6h
+          dry_run: false
+        rotation:
+          threshold_percent: 10
+        vault:
+          address: https://vault.example.com:8200
+          mount_path: secret
+          role_id: ${VAULT_ROLE_ID}
+          secret_id: ${VAULT_SECRET_ID}
+        observability:
+          log_level: info
+      tokens.yaml: |
+        tokens:
+          - label: homelab-api
+            team: personal
+            validity: 180d
+            scopes: "*"
+            storage:
+              - type: vault
+                path: linode/tokens/homelab-api
+                key: token
+                action: replace
+
+  - name: work-account
+    secrets:
+      existingSecret: latr-work-account-creds
+    configFiles:
+      process.yaml: |
+        daemon:
+          mode: daemon
+          check_interval: 6h
+        vault:
+          address: https://vault.example.com:8200
+          mount_path: secret
+          role_id: ${VAULT_ROLE_ID}
+          secret_id: ${VAULT_SECRET_ID}
+      tokens.yaml: |
+        tokens:
+          - label: ci-readonly
+            team: platform
+            validity: 90d
+            scopes: "linodes:read_only"
+            storage:
+              - type: vault
+                path: linode/tokens/ci-readonly

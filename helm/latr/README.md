@@ -17,6 +17,23 @@ latr is an automation tool that manages and automatically rotates Linode API tok
 - A valid Linode API token
 - Container image available at `ghcr.io/linode-obs/latr`
 
+## Modes
+
+| Mode | When | Resources |
+|------|------|-----------|
+| **Single-instance** (default) | `accounts: []` | One Deployment (current / simple installs) |
+| **Multi-account** | `accounts` non-empty | **One helm release** → **N Deployments**, one ConfigMap/Secret per account |
+
+Multi-account keeps **one** helm release (and typically one Argo Application) while running a separate latr pod per Linode account you manage. Set `accounts[].name` yourself (e.g. `personal-account`, `work-account`). Names become Deployment/ConfigMap/Secret names, so they must be valid **DNS-1123 labels** (lowercase alphanumeric and `-`, start/end alphanumeric, ≤63 characters). There is no public “customer id” field you must look up.
+
+See `examples/values-multi-account.yaml`.
+
+```bash
+helm template latr ./helm/latr -f helm/latr/examples/values-multi-account.yaml
+```
+
+Per account, prefer `configFiles` (map of filename → YAML text), e.g. `process.yaml` + `tokens.yaml`. latr is started with `-config /config/*` (Go `filepath.Glob`, no shell).
+
 ## Installing the Chart
 
 ### Basic Installation
@@ -45,7 +62,8 @@ config:
       scopes: "*"
       storage:
         - type: "vault"
-          path: "secret/data/linode/tokens/production"
+          # path relative to vault.mount_path (no mount/data prefix)
+          path: "linode/tokens/production"
 
 secrets:
   linodeToken: "your-linode-token"

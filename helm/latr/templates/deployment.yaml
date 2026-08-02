@@ -1,3 +1,4 @@
+{{- if ne (include "latr.multiAccount" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -40,7 +41,11 @@ spec:
         - /usr/local/bin/latr
         args:
         - -config
+        {{- if .Values.configFiles }}
+        - /config/*
+        {{- else }}
         - /config/config.yaml
+        {{- end }}
         env:
         - name: LINODE_TOKEN
           valueFrom:
@@ -96,3 +101,114 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
+{{- if eq (include "latr.multiAccount" .) "true" }}
+{{- range $account := .Values.accounts }}
+{{- $ctx := dict "root" $ "account" $account }}
+{{- $secrets := $account.secrets | default dict }}
+{{- $resources := $account.resources | default $.Values.resources }}
+{{- $env := $account.env | default $.Values.env }}
+{{- $replicaCount := dig "replicaCount" $.Values.replicaCount $account }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "latr.accountFullname" $ctx }}
+  labels:
+    {{- include "latr.accountLabels" $ctx | nindent 4 }}
+spec:
+  replicas: {{ $replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "latr.accountSelectorLabels" $ctx | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        # Hash only this account's config/secrets so other accounts do not roll.
+        checksum/config: {{ include "latr.accountConfigChecksum" $ctx | sha256sum }}
+        checksum/secret: {{ include "latr.accountSecretChecksum" $ctx | sha256sum }}
+        {{- with ($account.podAnnotations | default $.Values.podAnnotations) }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "latr.accountLabels" $ctx | nindent 8 }}
+        {{- with ($account.podLabels | default $.Values.podLabels) }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with $.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "latr.serviceAccountName" $ }}
+      securityContext:
+        {{- toYaml $.Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ $.Chart.Name }}
+        securityContext:
+          {{- toYaml $.Values.securityContext | nindent 12 }}
+        image: {{ include "latr.image" $ }}
+        imagePullPolicy: {{ $.Values.image.pullPolicy }}
+        command:
+        - /usr/local/bin/latr
+        args:
+        - -config
+        {{- if $account.configFiles }}
+        # filepath.Glob — no shell required; merges all mounted config files
+        - /config/*
+        {{- else }}
+        - /config/config.yaml
+        {{- end }}
+        env:
+        - name: LINODE_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "latr.accountSecretName" $ctx }}
+              key: linode-token
+        - name: VAULT_ROLE_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "latr.accountSecretName" $ctx }}
+              key: vault-role-id
+        - name: VAULT_SECRET_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "latr.accountSecretName" $ctx }}
+              key: vault-secret-id
+        {{- with $env }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        resources:
+          {{- toYaml $resources | nindent 12 }}
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        {{- with ($account.volumeMounts | default $.Values.volumeMounts) }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "latr.accountFullname" $ctx }}
+      - name: tmp
+        emptyDir: {}
+      {{- with ($account.volumes | default $.Values.volumes) }}
+      {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
+{{- end }}

@@ -7,6 +7,19 @@ To learn more about the release, try:
   $ helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
   $ helm get all {{ .Release.Name }} -n {{ .Release.Namespace }}
 
+{{- if eq (include "latr.multiAccount" .) "true" }}
+
+Multi-account mode: {{ len .Values.accounts }} account(s) → one Deployment each
+(named from accounts[].name, e.g. personal-account, work-account).
+
+{{- range .Values.accounts }}
+  - {{ include "latr.accountFullname" (dict "root" $ "account" .) }}
+{{- end }}
+
+  $ kubectl get deploy -n {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- else }}
+
 {{- if not .Values.secrets.existingSecret }}
 {{- if or (not .Values.secrets.linodeToken) (not .Values.secrets.vaultRoleId) (not .Values.secrets.vaultSecretId) }}
 
@@ -17,47 +30,34 @@ Please ensure you set the following values:
   - secrets.vaultRoleId
   - secrets.vaultSecretId
 
-You can update the secrets using:
-
-  $ helm upgrade {{ .Release.Name }} {{ .Chart.Name }} \
-      --set secrets.linodeToken="your-linode-token" \
-      --set secrets.vaultRoleId="your-vault-role-id" \
-      --set secrets.vaultSecretId="your-vault-secret-id"
-
-Alternatively, create a values file with your secrets and upgrade:
-
-  $ helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -f your-secrets.yaml
-
 {{- end }}
 {{- end }}
 
 {{- if not .Values.config.vault.address }}
+{{- if not .Values.configFiles }}
 
 WARNING: Vault address is not configured!
 
-Please set config.vault.address to your Vault server URL:
-
-  $ helm upgrade {{ .Release.Name }} {{ .Chart.Name }} \
-      --set config.vault.address="https://vault.example.com:8200"
+Please set config.vault.address to your Vault server URL.
 
 {{- end }}
+{{- end }}
 
-{{- if eq (len .Values.config.tokens) 0 }}
+{{- if and (eq (len .Values.config.tokens) 0) (not .Values.configFiles) }}
 
 WARNING: No tokens are configured!
 
-Please configure at least one token in config.tokens.
-See the values.yaml file for an example configuration.
+Please configure at least one token in config.tokens or use configFiles.
 
 {{- end }}
 
-To view the logs:
+  $ kubectl get deployment {{ include "latr.fullname" . }} -n {{ .Release.Namespace }}
+
+{{- end }}
+
+To view logs:
 
   $ kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "latr.name" . }} -f
-
-To check the deployment status:
-
-  $ kubectl get deployment {{ include "latr.fullname" . }} -n {{ .Release.Namespace }}
 
 For more information about latr, visit:
   https://github.com/linode-obs/latr
