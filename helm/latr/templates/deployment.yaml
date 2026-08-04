@@ -42,11 +42,18 @@ spec:
         - -config
         - /config/config.yaml
         env:
+        {{- if .Values.linodeTokenFile.enabled }}
+        - name: LINODE_TOKEN_FILE
+          value: {{ printf "%s/%s" .Values.linodeTokenFile.mountPath .Values.linodeTokenFile.key | quote }}
+        - name: LINODE_TOKEN_CACHE_TTL_SECONDS
+          value: {{ .Values.linodeTokenFile.cacheTTLSeconds | default 60 | quote }}
+        {{- else }}
         - name: LINODE_TOKEN
           valueFrom:
             secretKeyRef:
               name: {{ include "latr.secretName" . }}
               key: linode-token
+        {{- end }}
         - name: VAULT_ROLE_ID
           valueFrom:
             secretKeyRef:
@@ -72,6 +79,11 @@ spec:
           readOnly: true
         - name: tmp
           mountPath: /tmp
+        {{- if .Values.linodeTokenFile.enabled }}
+        - name: linode-token
+          mountPath: {{ .Values.linodeTokenFile.mountPath | quote }}
+          readOnly: true
+        {{- end }}
         {{- with .Values.volumeMounts }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -81,6 +93,14 @@ spec:
           name: {{ include "latr.fullname" . }}
       - name: tmp
         emptyDir: {}
+      {{- if .Values.linodeTokenFile.enabled }}
+      - name: linode-token
+        secret:
+          secretName: {{ include "latr.secretName" . }}
+          items:
+            - key: {{ .Values.linodeTokenFile.key | quote }}
+              path: {{ .Values.linodeTokenFile.key | quote }}
+      {{- end }}
       {{- with .Values.volumes }}
       {{- toYaml . | nindent 6 }}
       {{- end }}

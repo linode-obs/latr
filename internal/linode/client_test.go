@@ -1,9 +1,7 @@
 package linode
 
 import (
-	"context"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -12,22 +10,15 @@ import (
 func TestNewClient(t *testing.T) {
 	client := NewClient("test-token")
 	require.NotNil(t, client)
-	assert.Equal(t, "test-token", client.token)
+	require.NotNil(t, client.tokenProvider)
+	require.NotNil(t, client.client)
 }
 
-func TestCreateToken(t *testing.T) {
-	// This test will use a mock server to avoid real API calls
-	// For now, we'll write a test that verifies the method signature and structure
-	client := NewClient("test-token")
+func TestNewClientWithTokenProvider(t *testing.T) {
+	p := StaticTokenProvider("from-provider")
+	client := NewClientWithTokenProvider(p)
 	require.NotNil(t, client)
-
-	ctx := context.Background()
-	expiry := time.Now().Add(90 * 24 * time.Hour)
-
-	// Note: This will be tested with integration tests or mocks
-	// For unit tests, we'll verify the client can be created
-	_ = ctx
-	_ = expiry
+	assert.NotNil(t, client.tokenProvider)
 }
 
 func TestParseTokenScopes(t *testing.T) {

@@ -7,23 +7,62 @@ import (
 	"os"
 	"time"
 
-	"github.com/linode/linodego"
 	"github.com/linode-obs/latr/pkg/models"
-	"golang.org/x/oauth2"
+	"github.com/linode/linodego"
 )
 
 // Client wraps the linodego client
 type Client struct {
-	client *linodego.Client
-	token  string
+	client        *linodego.Client
+	tokenProvider TokenProvider
 }
 
-// NewClient creates a new Linode API client
-func NewClient(token string) *Client {
-	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-	oauth2Client := oauth2.NewClient(context.Background(), tokenSource)
+// tokenTransport injects Authorization from TokenProvider on each request so
+// file-backed tokens can rotate without reconstructing the linodego client.
+type tokenTransport struct {
+	base          http.RoundTripper
+	tokenProvider TokenProvider
+}
 
-	linodeClient := linodego.NewClient(oauth2Client)
+func (t *tokenTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	token, err := t.tokenProvider(req.Context())
+	if err != nil {
+		return nil, err
+	}
+
+	clone := req.Clone(req.Context())
+	if token != "" {
+		clone.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	return base.RoundTrip(clone)
+}
+
+// NewClient creates a new Linode API client with a static token.
+// Prefer NewClientWithTokenProvider when the management PAT may rotate without restart.
+func NewClient(token string) *Client {
+	return NewClientWithTokenProvider(StaticTokenProvider(token))
+}
+
+// NewClientWithTokenProvider creates a Linode API client that obtains the bearer
+// token from tokenProvider on each HTTP request (hot-reload friendly).
+func NewClientWithTokenProvider(tokenProvider TokenProvider) *Client {
+	if tokenProvider == nil {
+		tokenProvider = StaticTokenProvider("")
+	}
+
+	httpClient := &http.Client{
+		Transport: &tokenTransport{
+			base:          http.DefaultTransport,
+			tokenProvider: tokenProvider,
+		},
+	}
+
+	linodeClient := linodego.NewClient(httpClient)
 
 	// Support base URL override for testing
 	baseURL := os.Getenv("LINODE_API_URL")
@@ -31,9 +70,10 @@ func NewClient(token string) *Client {
 		linodeClient.SetBaseURL(baseURL)
 	}
 
+	// Do not call SetToken: auth is applied per-request by tokenTransport.
 	return &Client{
-		client: &linodeClient,
-		token:  token,
+		client:        &linodeClient,
+		tokenProvider: tokenProvider,
 	}
 }
 

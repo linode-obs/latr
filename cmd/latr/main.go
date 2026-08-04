@@ -46,13 +46,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Load Linode API token from environment
-	linodeToken := os.Getenv("LINODE_TOKEN")
-	if linodeToken == "" {
-		logger.Error("Missing required environment variable", slog.String("variable", "LINODE_TOKEN"))
-		os.Exit(1)
-	}
-
 	// Load and validate configuration
 	logger.Info("Loading configuration", slog.String("path", *configPath))
 	cfg, err := config.LoadAndValidate(*configPath)
@@ -86,9 +79,15 @@ func main() {
 	logger = observability.GetLogger()
 	defer telemetryCleanup()
 
-	// Create Linode client
-	linodeClient := linode.NewClient(linodeToken)
-	logger.InfoContext(ctx, "Linode client initialized")
+	// Management PAT: file (hot-reload) preferred over static env. Token value is never logged.
+	tokenProvider, tokenSource, err := linode.TokenProviderFromEnv(ctx)
+	if err != nil {
+		logger.ErrorContext(ctx, "Failed to load Linode API token", slog.Any("error", err))
+		os.Exit(1)
+	}
+	linodeClient := linode.NewClientWithTokenProvider(tokenProvider)
+	logger.InfoContext(ctx, "Linode client initialized",
+		slog.String("token_source", tokenSource))
 
 	// Create Vault client
 	vaultConfig := &vault.Config{
