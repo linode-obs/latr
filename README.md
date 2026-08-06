@@ -10,7 +10,8 @@ A Go application for automatically managing and rotating Linode API tokens with 
 - **Graceful Token Management**: Keeps old tokens until expiration (configurable pruning)
 - **Multiple Tokens**: Manage multiple API tokens with different configurations
 - **Team Metadata**: Associate tokens with owning teams for organization
-- **Flexible Configuration**: Single YAML file or glob pattern support
+- **Flexible Configuration**: Single YAML file, glob patterns, or multi-file process + token configs
+- **Config Validation**: `latr check-config` for CI (same rules as the daemon; no side effects)
 - **Daemon or One-Shot**: Run as a long-running daemon or one-time execution
 - **Dry-Run Mode**: Test configuration without making changes
 - **OpenTelemetry Support**: Observability via traces, metrics, and logs
@@ -207,10 +208,50 @@ Use a glob pattern to load multiple config files:
 ./latr -config "configs/*.yaml"
 ```
 
+### Validate Configuration (`check-config`)
+
+Validate config using the **same** parse / default / validate path as the daemon, without contacting Linode or Vault. Intended for CI and local PR checks.
+
+```bash
+# Classic single file (public / OSS)
+latr check-config --config config.yaml
+
+# Glob or multiple files (merged; tokens appended)
+latr check-config --config 'configs/*.yaml'
+latr check-config --config base.yaml --config tokens.yaml
+
+# Multi-file process + token configs (shared process settings + team token files)
+latr check-config \
+  --process process.yaml \
+  --config team-a-config.yml \
+  --config team-b-config.yml
+
+# Directory: expects _process.yaml plus one or more other *.yml / *.yaml token files
+latr check-config --dir path/to/config-dir
+```
+
+| Exit code | Meaning |
+|-----------|---------|
+| `0` | Config is valid |
+| `1` | Config is invalid |
+| `2` | Usage / flag error |
+
+Notes:
+
+- Empty Vault `role_id` / `secret_id` after `${VAR}` expansion are **allowed by default** so CI can validate structure without live AppRole secrets. Pass `--require-vault-credentials` to enforce them.
+- Duplicate token **labels** across merged files are rejected.
+- No network calls (no Linode, no Vault login).
+
+```bash
+latr check-config -h
+```
+
 ### Version Information
 
 ```bash
 ./latr -version
+# or
+./latr version
 ```
 
 ## How It Works
